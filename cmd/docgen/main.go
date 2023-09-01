@@ -22,9 +22,7 @@ type RuleDefinition struct {
 	Enabled     bool
 }
 
-const (
-	toolName = "trivy"
-)
+const toolName string = "trivy"
 
 var docFolder string
 
@@ -97,30 +95,36 @@ func toCodacyPatterns(rules []RuleDefinition) []codacy.Pattern {
 	codacyPatterns := []codacy.Pattern{}
 
 	for _, rule := range rules {
-		codacyPatterns = append(codacyPatterns, codacy.Pattern{
-			PatternID:   rule.ID,
-			Category:    rule.Category,
-			Level:       rule.Level,
-			SubCategory: rule.SubCategory,
-			Enabled:     rule.Enabled,
-		})
+		codacyPatterns = append(
+			codacyPatterns,
+			codacy.Pattern{
+				PatternID:   rule.ID,
+				Category:    rule.Category,
+				Level:       rule.Level,
+				SubCategory: rule.SubCategory,
+				Enabled:     rule.Enabled,
+			},
+		)
 	}
 	return codacyPatterns
 }
 
 func patternExtendedDescription(title string, description string) string {
-	return "## " + title + "\n" + description
+	return fmt.Sprintf("## %s\n%s", title, description)
 }
 
 func toCodacyPatternsDescription(rules []RuleDefinition) []codacy.PatternDescription {
 	codacyPatternsDescription := []codacy.PatternDescription{}
 
 	for _, rule := range rules {
-		codacyPatternsDescription = append(codacyPatternsDescription, codacy.PatternDescription{
-			PatternID:   rule.ID,
-			Description: rule.Description,
-			Title:       rule.Title,
-		})
+		codacyPatternsDescription = append(
+			codacyPatternsDescription,
+			codacy.PatternDescription{
+				PatternID:   rule.ID,
+				Description: rule.Description,
+				Title:       rule.Title,
+			},
+		)
 	}
 
 	return codacyPatternsDescription
@@ -136,7 +140,6 @@ func createPatternsJSONFile(patterns []codacy.Pattern, toolVersion string) error
 	}
 
 	toolAsJSON, err := json.MarshalIndent(tool, "", "  ")
-
 	if err != nil {
 		return err
 	}
@@ -158,7 +161,6 @@ func createDescriptionFiles(patternsDescriptionsList []codacy.PatternDescription
 			[]byte(patternExtendedDescription(pattern.Title, pattern.Description)),
 			0644,
 		)
-
 		if err != nil {
 			return err
 		}

@@ -4,14 +4,13 @@ WORKDIR /src
 
 COPY go.mod .
 COPY go.sum .
-RUN go mod download
+RUN go mod download && go mod verify
 
-COPY main.go .
-RUN go build -o bin/codacy-trivy -ldflags="-s -w" main.go
+COPY cmd/ cmd/
+RUN go build -o bin/codacy-trivy -ldflags="-s -w" cmd/tool/main.go
 
 COPY docs/ docs/
-COPY doc-generator.go .
-RUN go run ./doc-generator.go
+RUN go run cmd/docgen/main.go
 
 COPY docs/ /docs/
 
