@@ -30,7 +30,7 @@ func runTrivy(patterns []codacy.Pattern, files []string, sourceDir string) ([]co
 	for _, f := range files {
 		content, err := os.ReadFile(path.Join(sourceDir, f))
 		if err != nil {
-			return nil, fmt.Errorf("Error reading file %s from dir %s: %w", f, sourceDir, err)
+			return nil, fmt.Errorf("error reading file %s from dir %s: %w", f, sourceDir, err)
 		}
 		content = bytes.ReplaceAll(content, []byte("\r"), []byte(""))
 		secrets := scanner.Scan(
@@ -64,12 +64,12 @@ func (i TrivyImplementation) Run(tool codacy.Tool, sourceDir string) ([]codacy.I
 	// Trivy configuration in the Codacy prodcut does not allow for a configuration file.
 	// If the tool itself does not have patterns, then there is something wrong.
 	if len(tool.Patterns) == 0 {
-		return nil, fmt.Errorf("Error reading configuration: Tool has no patterns and no configuration file.")
+		return nil, nil
 	}
 
 	results, err := runTrivy(tool.Patterns, tool.Files, sourceDir)
 	if err != nil {
-		return nil, fmt.Errorf("Error running Trivy: %w", err)
+		return nil, fmt.Errorf("codacy-trivy: error running Trivy: %w", err)
 	}
 
 	return results, nil

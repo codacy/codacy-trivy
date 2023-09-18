@@ -79,7 +79,7 @@ func trivyVersion() (string, error) {
 
 func listTrivyRules() []RuleDefinition {
 	return []RuleDefinition{
-		RuleDefinition{
+		{
 			ID:          "secret",
 			Title:       "Secret detection",
 			Description: "Detects secrets that should not be committed to a repository or otherwise disclosed, such as secret keys, passwords, and authentication tokens from multiple products.",
