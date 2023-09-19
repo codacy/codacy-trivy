@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path"
 
+	"github.com/aquasecurity/trivy/pkg/commands/artifact"
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
+	"github.com/aquasecurity/trivy/pkg/flag"
+	"github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v5"
 	"github.com/samber/lo"
 )
@@ -14,6 +18,8 @@ import (
 const secretRuleID string = "secret"
 
 func runTrivy(patterns []codacy.Pattern, files []string, sourceDir string) ([]codacy.Issue, error) {
+	ctx := context.Background()
+
 	if secretDetectionEnabled := lo.SomeBy(
 		patterns,
 		func(p codacy.Pattern) bool {
@@ -23,6 +29,30 @@ func runTrivy(patterns []codacy.Pattern, files []string, sourceDir string) ([]co
 		return []codacy.Issue{}, nil
 	}
 
+	opts := flag.Options{
+		GlobalOptions: flag.GlobalOptions{
+			CacheDir: "/dist/cache/codacy-trivy",
+		},
+		VulnerabilityOptions: flag.VulnerabilityOptions{
+			VulnType: []types.VulnType{
+				types.VulnTypeLibrary,
+			},
+		},
+		ScanOptions: flag.ScanOptions{
+			Scanners: []types.Scanner{
+				types.VulnerabilityScanner,
+			},
+			OfflineScan: true,
+		},
+		DBOptions: flag.DBOptions{
+			SkipDBUpdate:     true,
+			SkipJavaDBUpdate: true,
+		},
+	}
+	r, err := artifact.NewRunner(context.Background(), opts)
+	if err != nil {
+		return nil, err
+	}
 	scanner := secret.NewScanner(&secret.Config{})
 
 	var results []codacy.Issue
@@ -50,6 +80,14 @@ func runTrivy(patterns []codacy.Pattern, files []string, sourceDir string) ([]co
 				},
 			)
 		}
+
+		opts.ScanOptions.Target = path.Join(sourceDir, f)
+		x, err := r.ScanFilesystem(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Printf("RESULTS %+v\n", x)
 	}
 
 	return results, nil

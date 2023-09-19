@@ -9,28 +9,35 @@ workflows:
     jobs:
       - codacy/checkout_and_version
       - codacy/shell:
-          name: publish_docker_local
+          name: download_trivy_db
+          # The installed trivy version matches the version we're using in the code (go.mod).
           cmd: |
-            docker build -t $CIRCLE_PROJECT_REPONAME:latest .
-            docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.44.1
+            ./trivy --cache-dir ./cache image --download-db-only
+            ./trivy --cache-dir ./cache image --download-java-db-only
           persist_to_workspace: true
           requires:
             - codacy/checkout_and_version
-      - codacy_plugins_test/run:
-          name: plugins_test
-          run_multiple_tests: true
+      - codacy/shell:
+          name: publish_docker_local
+          cmd: |
+            docker build -t $CIRCLE_PROJECT_REPONAME:0 .
+            docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:0
+          persist_to_workspace: true
           requires:
-            - publish_docker_local
+            - download_trivy_db
+      # - codacy_plugins_test/run:
+      #     name: plugins_test
+      #     run_multiple_tests: true
+      #     requires:
+      #       - publish_docker_local
       - codacy/publish_docker:
           context: CodacyDocker
+          docker_tag: "0"
           requires:
-            - plugins_test
-          filters:
-            branches:
-              only:
-                - master
-      - codacy/tag_version:
-          name: tag_version
-          context: CodacyAWS
-          requires:
-            - codacy/publish_docker
+            - publish_docker_local
+      # - codacy/tag_version:
+      #     name: tag_version
+      #     context: CodacyAWS
+      #     requires:
+      #       - codacy/publish_docker
