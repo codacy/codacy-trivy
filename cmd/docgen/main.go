@@ -12,48 +12,32 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-type RuleDefinition struct {
-	ID          string
-	Title       string
-	Description string
-	Level       string
-	Category    string
-	SubCategory string
-	Enabled     bool
-}
+const toolName string = "trivy"
 
-const (
-	toolName = "trivy"
-)
-
+// docFolder is the folder where generated documentation will be placed.
 var docFolder string
 
 func main() {
 	flag.StringVar(&docFolder, "docFolder", "docs", "Tool documentation folder")
 	flag.Parse()
-	os.Exit(run())
+	os.Exit(generateDocumentation())
 }
 
-func run() int {
-	rulesList := listTrivyRules()
+func generateDocumentation() int {
+	trivyRules := trivyRules()
 
-	codacyPatterns := toCodacyPatterns(rulesList)
-	codacyPatternsDescription := toCodacyPatternsDescription(rulesList)
-
-	version, err := trivyVersion()
+	trivyVersion, err := trivyVersion()
 	if err != nil {
 		fmt.Println(err)
 		return 1
 	}
 
-	err = createPatternsJSONFile(codacyPatterns, version)
-	if err != nil {
+	if err := createPatternsFile(trivyRules, trivyVersion); err != nil {
 		fmt.Println(err)
 		return 1
 	}
 
-	err = createDescriptionFiles(codacyPatternsDescription)
-	if err != nil {
+	if err := createPatternsDescriptionFiles(trivyRules); err != nil {
 		fmt.Println(err)
 		return 1
 	}
@@ -61,13 +45,14 @@ func run() int {
 	return 0
 }
 
+// trivyVersion returns the current version of the trivy library used.
 func trivyVersion() (string, error) {
 	goModFilename := "go.mod"
 	dependency := "github.com/aquasecurity/trivy"
 
 	goMod, err := os.ReadFile(goModFilename)
 	if err != nil {
-		return "", err
+		return "", DocGenError{msg: fmt.Sprintf("Failed to load %s file", goModFilename), w: err}
 	}
 
 	file, _ := modfile.Parse(goModFilename, goMod, nil)
@@ -76,102 +61,62 @@ func trivyVersion() (string, error) {
 			return strings.TrimPrefix(r.Mod.Version, "v"), nil
 		}
 	}
-	return "", fmt.Errorf("%s dependency not found", goModFilename)
+	return "", DocGenError{msg: fmt.Sprintf("%s dependency not found in %s file", dependency, goModFilename)}
 }
 
-func listTrivyRules() []RuleDefinition {
-	return []RuleDefinition{
-		RuleDefinition{
-			ID:          "secret",
-			Title:       "Secret detection",
-			Description: "Detects secrets that should not be committed to a repository or otherwise disclosed, such as secret keys, passwords, and authentication tokens from multiple products.",
-			Level:       "Error",
-			Category:    "Security",
-			SubCategory: "Cryptography",
-			Enabled:     true,
-		},
-	}
-}
+func createPatternsFile(rules Rules, toolVersion string) error {
+	fmt.Println("Creating patterns file...")
 
-func toCodacyPatterns(rules []RuleDefinition) []codacy.Pattern {
-	codacyPatterns := []codacy.Pattern{}
-
-	for _, rule := range rules {
-		codacyPatterns = append(codacyPatterns, codacy.Pattern{
-			PatternID:   rule.ID,
-			Category:    rule.Category,
-			Level:       rule.Level,
-			SubCategory: rule.SubCategory,
-			Enabled:     rule.Enabled,
-		})
-	}
-	return codacyPatterns
-}
-
-func patternExtendedDescription(title string, description string) string {
-	return "## " + title + "\n" + description
-}
-
-func toCodacyPatternsDescription(rules []RuleDefinition) []codacy.PatternDescription {
-	codacyPatternsDescription := []codacy.PatternDescription{}
-
-	for _, rule := range rules {
-		codacyPatternsDescription = append(codacyPatternsDescription, codacy.PatternDescription{
-			PatternID:   rule.ID,
-			Description: rule.Description,
-			Title:       rule.Title,
-		})
-	}
-
-	return codacyPatternsDescription
-}
-
-func createPatternsJSONFile(patterns []codacy.Pattern, toolVersion string) error {
-	fmt.Println("Creating patterns.json file...")
+	patternsFile := "patterns.json"
 
 	tool := codacy.ToolDefinition{
 		Name:     toolName,
 		Version:  toolVersion,
-		Patterns: patterns,
+		Patterns: rules.toCodacyPattern(),
 	}
 
-	toolAsJSON, err := json.MarshalIndent(tool, "", "  ")
-
+	toolJSON, err := json.MarshalIndent(tool, "", "  ")
 	if err != nil {
-		return err
+		return newFileContentError(patternsFile, err)
 	}
 
-	return os.WriteFile(path.Join(docFolder, "patterns.json"), toolAsJSON, 0644)
+	if err := os.WriteFile(path.Join(docFolder, patternsFile), toolJSON, 0644); err != nil {
+		return newFileCreationError(patternsFile, err)
+	}
+	return nil
 }
 
-func createDescriptionFiles(patternsDescriptionsList []codacy.PatternDescription) error {
+func createPatternsDescriptionFiles(rules Rules) error {
 	fmt.Println("Creating description files...")
 
-	for _, pattern := range patternsDescriptionsList {
+	patternsDescriptionFolder := "description"
+	patternsDescriptionFile := "description.json"
 
-		err := os.WriteFile(
-			path.Join(
-				docFolder,
-				"description",
-				pattern.PatternID+".md",
-			),
-			[]byte(patternExtendedDescription(pattern.Title, pattern.Description)),
-			0644,
-		)
+	patternsDescription := rules.toCodacyPatternDescription()
 
-		if err != nil {
-			return err
+	for _, patternDescription := range patternsDescription {
+		fileName := fmt.Sprintf("%s.md", patternDescription.PatternID)
+		fileContent := fmt.Sprintf("## %s\n%s", patternDescription.Title, patternDescription.Description)
+
+		if err := os.WriteFile(path.Join(docFolder, patternsDescriptionFolder, fileName), []byte(fileContent), 0644); err != nil {
+			return newFileCreationError(fileName, err)
 		}
 	}
 
-	descriptionsJSON, err := json.MarshalIndent(patternsDescriptionsList, "", "  ")
+	descriptionsJSON, err := json.MarshalIndent(patternsDescription, "", "  ")
 	if err != nil {
-		return err
+		return newFileContentError(patternsDescriptionFile, err)
 	}
 
-	return os.WriteFile(
-		path.Join(docFolder, "description", "description.json"),
-		descriptionsJSON,
-		0644,
-	)
+	if err := os.WriteFile(path.Join(docFolder, patternsDescriptionFolder, patternsDescriptionFile), descriptionsJSON, 0644); err != nil {
+		return newFileCreationError(patternsDescriptionFile, err)
+	}
+	return nil
+}
+
+func newFileCreationError(fileName string, w error) error {
+	return &DocGenError{msg: fmt.Sprintf("Failed to create %s file", fileName), w: w}
+}
+func newFileContentError(fileName string, w error) error {
+	return &DocGenError{msg: fmt.Sprintf("Failed to marshal %s file content", fileName), w: w}
 }
