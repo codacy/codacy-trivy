@@ -4,6 +4,28 @@ orbs:
   codacy: codacy/base@10.8.0
   codacy_plugins_test: codacy/plugins-test@1.1.1
 
+commands:
+  build_and_publish_docker:
+    description: "Builds and Publishes a docker image"
+    steps:
+      - run:
+          name: Build and Publish a docker image
+          command: |
+            docker build -t $CIRCLE_PROJECT_REPONAME:latest .
+            docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
+  
+  install_trivy_and_download_dbs:
+    description: "Installs trivy and downloads both Trivy and Java DBs"
+    steps:
+      - run:
+          name: Install trivy and download DBs
+          command: |
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.44.1
+            ./trivy --cache-dir ./cache image --download-db-only
+            ./trivy --cache-dir ./cache image --download-java-db-only
+
+      
+
 workflows:
   version: 2
   compile_test_deploy:
@@ -11,9 +33,9 @@ workflows:
       - codacy/checkout_and_version
       - codacy/shell:
           name: publish_docker_local
-          cmd: |
-            docker build -t $CIRCLE_PROJECT_REPONAME:latest .
-            docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
+          steps:
+            - build_and_publish_docker
+          cmd: ""
           persist_to_workspace: true
           requires:
             - codacy/checkout_and_version
@@ -30,6 +52,48 @@ workflows:
             branches:
               only:
                 - master
+      - codacy/tag_version:
+          name: tag_version
+          context: CodacyAWS
+          requires:
+            - codacy/publish_docker
+
+  scheduled_workflow:
+    triggers:
+      - schedule:
+          # cron: "0 0,12 * * *"
+          cron: "* * * * *"
+          filters:
+            branches:
+              ignore:
+                - master
+    jobs:
+      - codacy/checkout_and_version
+      - codacy/shell:
+          name: install_trivy_and_download_dbs
+          steps:
+            - install_trivy_and_download_dbs
+          cmd: ""
+          persist_to_workspace: true
+          requires:
+            - codacy/checkout_and_version
+      - codacy/shell:
+          name: publish_docker_local
+          steps:
+            - build_and_publish_docker
+          cmd: ""
+          persist_to_workspace: true
+          requires:
+            - install_trivy_and_download_dbs
+      - codacy_plugins_test/run:
+          name: plugins_test
+          run_multiple_tests: true
+          requires:
+            - publish_docker_local
+      - codacy/publish_docker:
+          context: CodacyDocker
+          requires:
+            - plugins_test
       - codacy/tag_version:
           name: tag_version
           context: CodacyAWS
