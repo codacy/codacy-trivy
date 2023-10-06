@@ -2,6 +2,6 @@
   {
     "patternId": "secret",
     "title": "Secret detection",
-    "description": "Detects secrets that should not be commited to a repository or otherwise disclosed, such as secret keys, passwords, and authentication tokens from multiple products."
+    "description": "Detects secrets that should not be committed to a repository or otherwise disclosed, such as secret keys, passwords, and authentication tokens from multiple products."
   }
 ]
