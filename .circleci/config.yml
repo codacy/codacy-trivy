@@ -35,3 +35,45 @@ workflows:
           context: CodacyAWS
           requires:
             - codacy/publish_docker
+
+  scheduled_workflow:
+    triggers:
+      - schedule:
+          cron: "* * * * *"
+          filters:
+            branches:
+              ignore:
+                - master
+    jobs:
+      - codacy/checkout_and_version
+      - codacy/shell:
+          name: download_trivy_and_java_dbs
+          cmd: |
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.44.1
+            ./trivy --cache-dir ./cache image --download-db-only
+            ./trivy --cache-dir ./cache image --download-java-db-only
+          persist_to_workspace: true
+          requires:
+            - codacy/checkout_and_version
+      - codacy/shell:
+          name: publish_docker_local
+          cmd: |
+            docker build -t $CIRCLE_PROJECT_REPONAME:latest .
+            docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
+          persist_to_workspace: true
+          requires:
+            - download_trivy_and_java_dbs
+      - codacy_plugins_test/run:
+          name: plugins_test
+          run_multiple_tests: true
+          requires:
+            - publish_docker_local
+      - codacy/publish_docker:
+          context: CodacyDocker
+          requires:
+            - plugins_test
+      - codacy/tag_version:
+          name: tag_version
+          context: CodacyAWS
+          requires:
+            - codacy/publish_docker
