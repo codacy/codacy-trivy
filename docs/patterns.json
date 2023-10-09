@@ -1,12 +1,19 @@
 {
   "name": "trivy",
-  "version": "0.44.1",
+  "version": "0.45.1",
   "patterns": [
     {
       "patternId": "secret",
       "category": "Security",
       "level": "Error",
       "subcategory": "Cryptography",
+      "enabled": true
+    },
+    {
+      "patternId": "vulnerability",
+      "category": "Security",
+      "level": "Error",
+      "subcategory": "InsecureModulesLibraries",
       "enabled": true
     }
   ]

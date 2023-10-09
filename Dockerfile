@@ -17,6 +17,7 @@ COPY docs/ /docs/
 
 RUN adduser -u 2004 -D docker
 RUN chown -R docker:docker /docs
+RUN chown -R docker:docker /dist/cache/codacy-trivy
 
 FROM busybox
 
