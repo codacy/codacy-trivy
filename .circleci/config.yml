@@ -49,22 +49,26 @@ jobs:
     steps:
       - attach_run_command_and_persist:
           cmd_name: Install trivy and download DBs
-          # The Java DB is cached for 3 days. Using the '--reset' flag clears the DB cache.
           # https://aquasecurity.github.io/trivy/v0.45/getting-started/installation/#install-script
           cmd: |
             curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.44.1
+            mkdir cache
             ./trivy --cache-dir ./cache image --download-db-only
-            ./trivy --cache-dir ./cache image --download-java-db-only --reset
+            ./trivy --cache-dir ./cache image --download-java-db-only
 
 workflows:
   version: 2
   compile_test_deploy:
     jobs:
       - codacy/checkout_and_version
+      - install_trivy_and_download_dbs:
+          name: install_trivy_and_download_dbs
+          requires:
+            - codacy/checkout_and_version
       - build_and_publish_docker:
           name: publish_docker_local
           requires:
-            - codacy/checkout_and_version
+            - install_trivy_and_download_dbs
       - codacy_plugins_test/run:
           name: plugins_test
           run_multiple_tests: true
@@ -91,23 +95,23 @@ workflows:
           cron: "0 3 * * *"
           filters:
             branches:
-              ignore:
+              only:
                 - master
     jobs:
       - codacy/checkout_and_version
       - install_trivy_and_download_dbs:
           name: install_trivy_and_download_dbs
           requires:
-            - publish_docker_local
+            - codacy/checkout_and_version
       - build_and_publish_docker:
           name: publish_docker_local
           requires:
-            - codacy/checkout_and_version
+            - install_trivy_and_download_dbs
       - codacy_plugins_test/run:
           name: plugins_test
           run_multiple_tests: true
           requires:
-            - install_trivy_and_download_dbs
+            - publish_docker_local
       - codacy/publish_docker:
           context: CodacyDocker
           requires:
