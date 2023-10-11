@@ -13,9 +13,8 @@ FROM busybox
 
 RUN adduser -u 2004 -D docker
 
-COPY --from=builder /src/bin /dist/bin
-COPY --from=builder /src/docs /docs 
-COPY --chown=docker:docker /docs /docs/
-COPY --from=builder /src/cache/ /dist/cache/codacy-trivy
+COPY --from=builder --chown=docker:docker /src/bin /dist/bin
+COPY --from=builder --chown=docker:docker /src/docs /docs 
+COPY --from=builder --chown=docker:docker /src/cache/ /dist/cache/codacy-trivy
 
 CMD [ "/dist/bin/codacy-trivy" ]
