@@ -62,5 +62,14 @@ func trivyRules() Rules {
 			SubCategory: "Cryptography",
 			Enabled:     true,
 		},
+		{
+			ID:          "vulnerability",
+			Title:       "Insecure dependencies detection",
+			Description: "Detects insecure dependencies by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
+			Level:       "Error",
+			Category:    "Security",
+			SubCategory: "InsecureModulesLibraries",
+			Enabled:     true,
+		},
 	}
 }

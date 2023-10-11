@@ -6,6 +6,6 @@ import (
 )
 
 func main() {
-	codacyTrivy := &tool.CodacyTrivy{}
-	codacy.StartTool(codacyTrivy)
+	codacyTrivy := tool.New()
+	codacy.StartTool(&codacyTrivy)
 }

@@ -61,10 +61,17 @@ workflows:
   compile_test_deploy:
     jobs:
       - codacy/checkout_and_version
+      - codacy/shell:
+          name: generate_and_test
+          cmd: |
+            go generate ./...
+            go test ./...
+          requires:
+            - codacy/checkout_and_version
       - install_trivy_and_download_dbs:
           name: install_trivy_and_download_dbs
           requires:
-            - codacy/checkout_and_version
+            - generate_and_test
       - build_and_publish_docker:
           name: publish_docker_local
           requires:
@@ -99,10 +106,17 @@ workflows:
                 - master
     jobs:
       - codacy/checkout_and_version
+      - codacy/shell:
+          name: generate_and_test
+          cmd: |
+            go generate ./...
+            go test ./...
+          requires:
+            - codacy/checkout_and_version
       - install_trivy_and_download_dbs:
           name: install_trivy_and_download_dbs
           requires:
-            - codacy/checkout_and_version
+            - generate_and_test
       - build_and_publish_docker:
           name: publish_docker_local
           requires:

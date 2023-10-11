@@ -17,6 +17,7 @@ type DocumentationGenerator interface {
 	Generate(destinationDir string) error
 }
 
+// New creates a new instance of the documentation generator.
 func New() DocumentationGenerator {
 	return &documentationGenerator{}
 }
@@ -48,7 +49,7 @@ func trivyVersion() (*string, error) {
 
 	goMod, err := os.ReadFile(goModFilename)
 	if err != nil {
-		return nil, DocGenError{msg: fmt.Sprintf("Failed to load %s file", goModFilename), w: err}
+		return nil, &DocGenError{msg: fmt.Sprintf("Failed to load %s file", goModFilename), w: err}
 	}
 
 	file, _ := modfile.Parse(goModFilename, goMod, nil)
@@ -58,7 +59,7 @@ func trivyVersion() (*string, error) {
 			return &version, nil
 		}
 	}
-	return nil, DocGenError{msg: fmt.Sprintf("%s dependency not found in %s file", dependency, goModFilename)}
+	return nil, &DocGenError{msg: fmt.Sprintf("%s dependency not found in %s file", dependency, goModFilename)}
 }
 
 func (g documentationGenerator) createPatternsFile(rules Rules, toolVersion, destinationDir string) error {
