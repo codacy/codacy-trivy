@@ -1,4 +1,4 @@
-package main
+package tool
 
 import (
 	"bytes"
@@ -40,13 +40,14 @@ func run(patterns []codacy.Pattern, files []string, sourceDir string) ([]codacy.
 	results := []codacy.Issue{}
 
 	for _, f := range files {
-		content, err := os.ReadFile(path.Join(sourceDir, f))
+		filePath := path.Join(sourceDir, f)
+		content, err := os.ReadFile(filePath)
 		if err != nil {
 			return nil, ToolError{msg: fmt.Sprintf("Failed to read source file %s", f), w: err}
 		}
 		content = bytes.ReplaceAll(content, []byte("\r"), []byte(""))
 
-		secrets := scanner.Scan(secret.ScanArgs{FilePath: f, Content: content})
+		secrets := scanner.Scan(secret.ScanArgs{FilePath: filePath, Content: content})
 		for _, result := range secrets.Findings {
 			results = append(
 				results,

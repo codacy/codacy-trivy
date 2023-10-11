@@ -1,4 +1,4 @@
-package main
+package docgen
 
 import codacy "github.com/codacy/codacy-engine-golang-seed/v5"
 

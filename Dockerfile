@@ -2,13 +2,9 @@ FROM golang:1.21-alpine as builder
 
 WORKDIR /src
 
-COPY go.mod .
-COPY go.sum .
+COPY . .
 RUN go mod download
 RUN go mod verify
-
-COPY cmd/ cmd/
-COPY docs/ docs/
 
 RUN go build -o bin/codacy-trivy -ldflags="-s -w" ./cmd/tool
 RUN go run ./cmd/docgen
