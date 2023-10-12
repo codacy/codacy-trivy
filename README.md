@@ -37,6 +37,16 @@ scala-cli doc-generator.sc
 We use the [codacy-plugins-test](https://github.com/codacy/codacy-plugins-test) to test our external tools integration.
 You can follow the instructions there to make sure your tool is working as expected.
 
+## Versioning
+
+The latest version of this docker image will be updated daily with new versions of Trivy's vulnerability DBs. The update process keeps the version tag.
+
+For example, if the latest tag is `1.2.3`, then each day the image content for that tag is updated.
+
+If you're using this docker image please guarantee that you're always using the latest version, and that you always pull the image, to make sure you're not exposed to new vulnerabilities.
+
+The `latest` tag is also available but you should avoid using it, as it is harder to track which version of the image is running and more difficult to roll back properly.
+
 ## What is Codacy?
 
 [Codacy](https://www.codacy.com/) is an Automated Code Review Tool that monitors your technical debt, helps you improve your code quality, teaches best practices to your developers, and helps you save time in Code Reviews.
