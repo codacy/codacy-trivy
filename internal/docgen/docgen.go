@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	codacy "github.com/codacy/codacy-engine-golang-seed/v5"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"golang.org/x/mod/modfile"
 )
 

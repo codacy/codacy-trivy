@@ -11,7 +11,7 @@ import (
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/types"
-	codacy "github.com/codacy/codacy-engine-golang-seed/v5"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -35,21 +35,22 @@ func TestRun(t *testing.T) {
 	packageID1 := "package-1"
 	packageID2 := "package-2"
 
-	tool := codacy.Tool{
-		Patterns: []codacy.Pattern{
+	sourceDir := "src"
+	toolExecution := codacy.ToolExecution{
+		Patterns: &[]codacy.Pattern{
 			{
-				PatternID: ruleIDSecret,
+				ID: ruleIDSecret,
 			},
 			{
-				PatternID: ruleIDVulnerability,
+				ID: ruleIDVulnerability,
 			},
 			{
-				PatternID: "unknown",
+				ID: "unknown",
 			},
 		},
-		Files: []string{file1, file2},
+		Files:     &[]string{file1, file2},
+		SourceDir: sourceDir,
 	}
-	sourceDir := "src"
 
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
@@ -72,7 +73,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	results := types.Report{
+	report := types.Report{
 		Results: types.Results{
 			{
 				Target: file1,
@@ -106,6 +107,14 @@ func TestRun(t *testing.T) {
 						},
 						FixedVersion: "no line",
 					},
+					{
+						PkgID:           "packageID10",
+						VulnerabilityID: "no line",
+						Vulnerability: dbtypes.Vulnerability{
+							Title: "no line",
+						},
+						FixedVersion: "no line",
+					},
 				},
 			},
 			{
@@ -114,6 +123,16 @@ func TestRun(t *testing.T) {
 					{
 						StartLine: 2,
 						Title:     "secret title",
+					},
+				},
+				Vulnerabilities: []types.DetectedVulnerability{
+					{
+						PkgID:           "packageID10",
+						VulnerabilityID: "no line",
+						Vulnerability: dbtypes.Vulnerability{
+							Title: "no line",
+						},
+						FixedVersion: "no line",
 					},
 				},
 			},
@@ -138,31 +157,39 @@ func TestRun(t *testing.T) {
 	mockRunner.EXPECT().ScanFilesystem(
 		gomock.Eq(ctx),
 		gomock.Eq(config),
-	).Return(results, nil).Times(1)
+	).Return(report, nil).Times(1)
 	mockRunner.EXPECT().Close(
 		gomock.Eq(ctx),
 	).Return(nil).Times(1)
 
 	// Act
-	issues, err := underTest.Run(tool, sourceDir)
+	results, err := underTest.Run(ctx, toolExecution)
 
 	// Assert
 	if assert.NoError(t, err) {
-		expectedIssues := []codacy.Issue{
-			{
+		expectedResults := []codacy.Result{
+			codacy.Issue{
 				File:      file1,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency package-1 (vuln id: vuln title) (update to vuln fixed)",
 			},
-			{
+			codacy.Issue{
 				File:      file2,
 				Line:      2,
 				PatternID: ruleIDSecret,
 				Message:   "Possible hardcoded secret: secret title",
 			},
+			codacy.FileError{
+				File:    file1,
+				Message: "Line numbers not supported",
+			},
+			codacy.FileError{
+				File:    file2,
+				Message: "Line numbers not supported",
+			},
 		}
-		assert.ElementsMatch(t, expectedIssues, issues)
+		assert.ElementsMatch(t, expectedResults, results)
 	}
 }
 
@@ -171,20 +198,20 @@ func TestRunNoPatterns(t *testing.T) {
 	underTest := codacyTrivy{}
 
 	// Act
-	issues, err := underTest.Run(codacy.Tool{}, "not-used")
+	results, err := underTest.Run(context.Background(), codacy.ToolExecution{})
 
 	// Assert
 	if assert.NoError(t, err) {
-		assert.Empty(t, issues)
+		assert.Empty(t, results)
 	}
 }
 
 func TestRunConfigurationError(t *testing.T) {
 	// Arrange
-	tool := codacy.Tool{
-		Patterns: []codacy.Pattern{
+	toolExecution := codacy.ToolExecution{
+		Patterns: &[]codacy.Pattern{
 			{
-				PatternID: "unknown",
+				ID: "unknown",
 			},
 		},
 	}
@@ -192,7 +219,7 @@ func TestRunConfigurationError(t *testing.T) {
 	underTest := codacyTrivy{}
 
 	// Act
-	config, err := underTest.Run(tool, "not-used")
+	config, err := underTest.Run(context.Background(), toolExecution)
 
 	// Assert
 	if assert.Error(t, err) {
@@ -204,10 +231,10 @@ func TestRunConfigurationError(t *testing.T) {
 
 func TestRunNewRunnerError(t *testing.T) {
 	// Arrange
-	tool := codacy.Tool{
-		Patterns: []codacy.Pattern{
+	toolExecution := codacy.ToolExecution{
+		Patterns: &[]codacy.Pattern{
 			{
-				PatternID: ruleIDSecret,
+				ID: ruleIDSecret,
 			},
 		},
 	}
@@ -217,7 +244,7 @@ func TestRunNewRunnerError(t *testing.T) {
 	}
 
 	// Act
-	issues, err := underTest.Run(tool, "not-used")
+	issues, err := underTest.Run(context.Background(), toolExecution)
 
 	// Assert
 	if assert.Error(t, err) {
@@ -231,17 +258,18 @@ func TestRunScanFilesystemError(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	tool := codacy.Tool{
-		Patterns: []codacy.Pattern{
+	sourceDir := "src"
+	toolExecution := codacy.ToolExecution{
+		Patterns: &[]codacy.Pattern{
 			{
-				PatternID: ruleIDSecret,
+				ID: ruleIDSecret,
 			},
 			{
-				PatternID: ruleIDVulnerability,
+				ID: ruleIDVulnerability,
 			},
 		},
+		SourceDir: sourceDir,
 	}
-	sourceDir := "src"
 
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
@@ -279,7 +307,7 @@ func TestRunScanFilesystemError(t *testing.T) {
 	).Return(nil).Times(1)
 
 	// Act
-	issues, err := underTest.Run(tool, sourceDir)
+	issues, err := underTest.Run(ctx, toolExecution)
 
 	// Assert
 	if assert.Error(t, err) {

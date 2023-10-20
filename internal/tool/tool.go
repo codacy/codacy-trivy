@@ -7,7 +7,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/aquasecurity/trivy/pkg/types"
-	codacy "github.com/codacy/codacy-engine-golang-seed/v5"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/samber/lo"
 )
 
@@ -30,27 +30,26 @@ type codacyTrivy struct {
 }
 
 // https://github.com/uber-go/guide/blob/master/style.md#verify-interface-compliance
-var _ codacy.ToolImplementation = (*codacyTrivy)(nil)
+var _ codacy.Tool = (*codacyTrivy)(nil)
 
-func (t codacyTrivy) Run(tool codacy.Tool, sourceDir string) ([]codacy.Issue, error) {
-	if len(tool.Patterns) == 0 {
-		// TODO Use configuration from source code or default configuration file.
-		return []codacy.Issue{}, nil
+func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution) ([]codacy.Result, error) {
+	if toolExecution.Patterns == nil || len(*toolExecution.Patterns) == 0 {
+		// TODO Use configuration from the tool configuration file or the default rules from the tool's definition (in that order).
+		return []codacy.Result{}, nil
 	}
 
-	config, err := newConfiguration(tool.Patterns, sourceDir)
+	config, err := newConfiguration(*toolExecution.Patterns, toolExecution.SourceDir)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx := context.Background()
 	issues, err := t.run(ctx, *config)
 	if err != nil {
 		return nil, err
 	}
 
 	// Filter only valid results
-	return filterIssuesWithLineNumber(filterIssuesFromKnownFiles(issues, tool.Files)), nil
+	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
 }
 
 func (t codacyTrivy) run(ctx context.Context, config flag.Options) ([]codacy.Issue, error) {
@@ -109,7 +108,7 @@ func (t codacyTrivy) run(ctx context.Context, config flag.Options) ([]codacy.Iss
 func newConfiguration(patterns []codacy.Pattern, sourceDir string) (*flag.Options, error) {
 	scanners := types.Scanners{}
 	for _, pattern := range patterns {
-		switch pattern.PatternID {
+		switch pattern.ID {
 		case ruleIDSecret:
 			scanners = append(scanners, types.SecretScanner)
 		case ruleIDVulnerability:
@@ -155,11 +154,24 @@ func newConfiguration(patterns []codacy.Pattern, sourceDir string) (*flag.Option
 	}, nil
 }
 
-// Issues without a line number (0 is the empty value) can't be displayed by Codacy and should be ignored.
-func filterIssuesWithLineNumber(issues []codacy.Issue) []codacy.Issue {
-	return lo.Filter(issues, func(issue codacy.Issue, _ int) bool {
-		return issue.Line > 0
+// Results without a line number (0 is the empty value) can't be displayed by Codacy and are mapped to a `codacy.FileError`.
+// Furthermore, this function guarantees only one `codacy.FileError` per file.
+func mapIssuesWithoutLineNumber(issues []codacy.Issue) []codacy.Result {
+	issuesWithLineNumbers := lo.FilterMap(issues, func(issue codacy.Issue, _ int) (codacy.Result, bool) {
+		return issue, issue.Line > 0
 	})
+
+	fileErrors := lo.FilterMap(issues, func(issue codacy.Issue, _ int) (codacy.Result, bool) {
+		return codacy.FileError{
+			File:    issue.File,
+			Message: "Line numbers not supported",
+		}, issue.Line <= 0
+	})
+	uniqueFileErrors := lo.UniqBy(fileErrors, func(result codacy.Result) string {
+		return result.GetFile()
+	})
+
+	return append(issuesWithLineNumbers, uniqueFileErrors...)
 }
 
 // Trivy analyses the whole source dir, since it's faster than analysing individual files.

@@ -1,6 +1,6 @@
 package docgen
 
-import codacy "github.com/codacy/codacy-engine-golang-seed/v5"
+import codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 
 // Rule represent a static code analysis rule that an execution of `codacy-trivy` can trigger.
 type Rule struct {
@@ -15,7 +15,7 @@ type Rule struct {
 
 func (r Rule) toCodacyPattern() codacy.Pattern {
 	return codacy.Pattern{
-		PatternID:   r.ID,
+		ID:          r.ID,
 		Category:    r.Category,
 		Level:       r.Level,
 		SubCategory: r.SubCategory,
