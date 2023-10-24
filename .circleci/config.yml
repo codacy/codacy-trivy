@@ -54,7 +54,8 @@ jobs:
             curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.44.1
             mkdir cache
             ./trivy --cache-dir ./cache image --download-db-only
-            ./trivy --cache-dir ./cache image --download-java-db-only
+          # For now this step is not necessary, please uncomment when needed
+          # ./trivy --cache-dir ./cache image --download-java-db-only
 
 workflows:
   version: 2
@@ -127,6 +128,39 @@ workflows:
           requires:
             - publish_docker_local
       - codacy/publish_docker:
+          name: publish_docker_hub
           context: CodacyDocker
           requires:
             - plugins_test
+
+      - codacy/mirror_to_ecr:
+          context: CodacyAWS
+          name: mirror_to_ecr_integration
+          aws_profile: integration
+          source_name: codacy/codacy-trivy
+          mirror_name: codacy/codacy-trivy
+          source_tag: $(cat .version)
+          force: true
+          requires:
+            - publish_docker_hub
+      - codacy/mirror_to_ecr:
+          context: CodacyAWS
+          name: mirror_to_ecr_staging
+          aws_profile: staging
+          source_name: codacy/codacy-trivy
+          mirror_name: codacy/codacy-trivy
+          source_tag: $(cat .version)
+          force: true
+          requires:
+            - publish_docker_hub
+      - codacy/mirror_to_ecr:
+          context: CodacyAWS
+          name: mirror_to_ecr_production
+          aws_profile: production
+          source_name: codacy/codacy-trivy
+          mirror_name: codacy/codacy-trivy
+          source_tag: $(cat .version)
+          force: true
+          requires:
+            - publish_docker_hub
+
