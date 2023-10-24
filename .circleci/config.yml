@@ -97,16 +97,20 @@ workflows:
             - codacy/publish_docker
 
   update_vulnerability_dbs:
-    triggers:
-      - schedule:
-          # this is running at 3am everyday to avoid doing it at midnight (same time as nightly)
-          cron: "0 3 * * *"
+#    triggers:
+#      - schedule:
+#          # this is running at 3am everyday to avoid doing it at midnight (same time as nightly)
+#          cron: "0 3 * * *"
+#          filters:
+#            branches:
+#              only:
+#                - master
+    jobs:
+      - codacy/checkout_and_version:
           filters:
             branches:
               only:
                 - master
-    jobs:
-      - codacy/checkout_and_version
       - codacy/shell:
           name: generate_and_test
           cmd: |
