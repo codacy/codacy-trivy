@@ -132,7 +132,7 @@ workflows:
           requires:
             - publish_docker_local
       - codacy/publish_docker:
-          name: publish_docker_hub
+          name: publish_dockerhub
           context: CodacyDocker
           cmd: |
             docker load --input docker-image.tar
@@ -149,28 +149,28 @@ workflows:
           aws_profile: integration
           source_name: codacy/codacy-trivy
           mirror_name: codacy/codacy-trivy
-          source_tag: $(cat .version)
+          source_tag: $(cat .previous_version)
           force: true
           requires:
-            - publish_docker_hub
+            - publish_dockerhub
       - codacy/mirror_to_ecr:
           context: CodacyAWS
           name: mirror_to_ecr_staging
           aws_profile: staging
           source_name: codacy/codacy-trivy
           mirror_name: codacy/codacy-trivy
-          source_tag: $(cat .version)
+          source_tag: $(cat .previous_version)
           force: true
           requires:
-            - publish_docker_hub
+            - publish_dockerhub
       - codacy/mirror_to_ecr:
           context: CodacyAWS
           name: mirror_to_ecr_production
           aws_profile: production
           source_name: codacy/codacy-trivy
           mirror_name: codacy/codacy-trivy
-          source_tag: $(cat .version)
+          source_tag: $(cat .previous_version)
           force: true
           requires:
-            - publish_docker_hub
+            - publish_dockerhub
 
