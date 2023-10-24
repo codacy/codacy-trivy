@@ -100,7 +100,7 @@ workflows:
     triggers:
       - schedule:
           # this is running at 3am everyday to avoid doing it at midnight (same time as nightly)
-          cron: "0 3 * * *"
+          cron: "* * * * *"
           filters:
             branches:
               only:
