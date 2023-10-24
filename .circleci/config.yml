@@ -103,7 +103,7 @@ workflows:
           cron: "* * * * *"
           filters:
             branches:
-              only:
+              ignore:
                 - master
     jobs:
       - codacy/checkout_and_version
