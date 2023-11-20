@@ -73,17 +73,18 @@ func (t codacyTrivy) run(ctx context.Context, config flag.Options) ([]codacy.Iss
 			if len(pkg.Locations) > 0 {
 				lineNumber = pkg.Locations[0].StartLine
 			}
-			lineNumberByPackageId[pkg.ID] = lineNumber
+			lineNumberByPackageId[pkgID(pkg.ID, pkg.Name, pkg.Version)] = lineNumber
 		}
 
 		// Vulnerability scanning results
 		for _, vuln := range result.Vulnerabilities {
+			ID := pkgID(vuln.PkgID, vuln.PkgName, vuln.InstalledVersion)
 			issues = append(
 				issues,
 				codacy.Issue{
 					File:      result.Target,
-					Line:      lineNumberByPackageId[vuln.PkgID],
-					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) (update to %s)", vuln.PkgID, vuln.VulnerabilityID, vuln.Title, vuln.FixedVersion),
+					Line:      lineNumberByPackageId[ID],
+					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) (update to %s)", ID, vuln.VulnerabilityID, vuln.Title, vuln.FixedVersion),
 					PatternID: ruleIDVulnerability,
 				},
 			)
@@ -183,4 +184,11 @@ func filterIssuesFromKnownFiles(issues []codacy.Issue, knownFiles []string) []co
 			return issue.File == file
 		})
 	})
+}
+
+func pkgID(ID, name, version string) string {
+	if ID != "" {
+		return ID
+	}
+	return fmt.Sprintf("%s@%s", name, version)
 }

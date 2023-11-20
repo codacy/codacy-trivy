@@ -33,13 +33,13 @@ func (r Rule) toCodacyPatternDescription() codacy.PatternDescription {
 
 type Rules []Rule
 
-func (rs Rules) toCodacyPattern() []codacy.Pattern {
+func (rs Rules) toCodacyPattern() *[]codacy.Pattern {
 	codacyPatterns := make([]codacy.Pattern, len(rs))
 
 	for i, r := range rs {
 		codacyPatterns[i] = r.toCodacyPattern()
 	}
-	return codacyPatterns
+	return &codacyPatterns
 }
 func (rs Rules) toCodacyPatternDescription() []codacy.PatternDescription {
 	codacyPatternsDescription := make([]codacy.PatternDescription, len(rs))

@@ -1,8 +1,8 @@
 version: 2.1
 
 orbs:
-  codacy: codacy/base@10.9.0
-  codacy_plugins_test: codacy/plugins-test@1.1.1
+  codacy: codacy/base@10.11.1
+  codacy_plugins_test: codacy/plugins-test@2.0.2
 
 commands:
   attach_run_command_and_persist:
@@ -25,7 +25,7 @@ commands:
       - persist_to_workspace:
           root: ~/workdir
           paths:
-            - '*'
+            - "*"
 
 jobs:
   build_and_publish_docker:
@@ -39,7 +39,6 @@ jobs:
           cmd: |
             docker build -t $CIRCLE_PROJECT_REPONAME:latest .
             docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
-
 
   install_trivy_and_download_dbs:
     docker:
@@ -58,7 +57,6 @@ jobs:
           # ./trivy --cache-dir ./cache image --download-java-db-only
 
 workflows:
-  version: 2
   compile_test_deploy:
     jobs:
       - codacy/checkout_and_version
@@ -169,4 +167,3 @@ workflows:
           force: true
           requires:
             - publish_dockerhub
-

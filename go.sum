@@ -290,8 +290,6 @@ github.com/aquasecurity/bolt-fixtures v0.0.0-20200903104109-d34e7f983986 h1:2a30
 github.com/aquasecurity/bolt-fixtures v0.0.0-20200903104109-d34e7f983986/go.mod h1:NT+jyeCzXk6vXR5MTkdn4z64TgGfE5HMLC8qfj5unl8=
 github.com/aquasecurity/defsec v0.93.1 h1:y4XgRknjs2M58XVLANBT1wulO7N6Rz1oyfwNuzID+h4=
 github.com/aquasecurity/defsec v0.93.1/go.mod h1:i80K4WRNbcIWDOQDWnTHkutBwplzw/uZD4laKbhu4sE=
-github.com/aquasecurity/go-dep-parser v0.0.0-20231030050624-4548cca9a5c9 h1:AYees+PQjw47SEdM6e/xxgrFzHA+UWxQl6WndDzILNY=
-github.com/aquasecurity/go-dep-parser v0.0.0-20231030050624-4548cca9a5c9/go.mod h1:RpdbxLhxxvWmv83HWNEiv+reFkmnV+GqHqr66mIU8nU=
 github.com/aquasecurity/go-gem-version v0.0.0-20201115065557-8eed6fe000ce h1:QgBRgJvtEOBtUXilDb1MLi1p1MWoyFDXAu5DEUl5nwM=
 github.com/aquasecurity/go-gem-version v0.0.0-20201115065557-8eed6fe000ce/go.mod h1:HXgVzOPvXhVGLJs4ZKO817idqr/xhwsTcj17CLYY74s=
 github.com/aquasecurity/go-npm-version v0.0.0-20201110091526-0b796d180798 h1:eveqE9ivrt30CJ7dOajOfBavhZ4zPqHcZe/4tKp0alc=
@@ -443,8 +441,10 @@ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211001041855-01bcc9b48dfe/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.1.2 h1:yUUWjiSP3AHUp6Hzw83nENuHgaknEYFB2jTjGMiCoa0=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.1.2/go.mod h1:74FKDkdXzHlZOLfjU9Khp8cvcz4sLB6S7I3eyzFJ/5I=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.1.4 h1:wiHrfn2LzzJPthHBB9MLfs4azVoZObeuXK56T6uBqE0=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.1.4/go.mod h1:74FKDkdXzHlZOLfjU9Khp8cvcz4sLB6S7I3eyzFJ/5I=
+github.com/codacy/go-dep-parser v0.0.2 h1:qvGZAUDzcbusSptmb7GYhXDoZwqJvLsDJ7qZHBsLr8I=
+github.com/codacy/go-dep-parser v0.0.2/go.mod h1:7+xrs6AWD5+onpmX8f7qIkAhUgkPP0mhUdBjxJBcfas=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUoc7Ik9EfrFqcylYqgPZ9ANSbTAntnE=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb/go.mod h1:ZjrT6AXHbDs86ZSdt/osfBi5qfexBrKUdONk989Wnk4=
 github.com/containerd/cgroups v1.1.0 h1:v8rEWFl6EoqHB+swVNjVoCJE8o3jX7e8nqBGPLaDFBM=
@@ -850,8 +850,8 @@ github.com/hashicorp/go-msgpack v0.5.3/go.mod h1:ahLV/dePpqEmjfWmKiqvPkv/twdG7iP
 github.com/hashicorp/go-multierror v1.0.0/go.mod h1:dHtQlpGsu+cZNNAkkCN/P3hoUDHhCYQXV3UM06sGGrk=
 github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+lD48awMYo=
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
-github.com/hashicorp/go-retryablehttp v0.7.4 h1:ZQgVdpTdAL7WpMIwLzCfbalOcSUdkDZnpUv3/+BxzFA=
-github.com/hashicorp/go-retryablehttp v0.7.4/go.mod h1:Jy/gPYAdjqffZ/yFGCFV2doI5wjtH1ewM9u8iYVjtX8=
+github.com/hashicorp/go-retryablehttp v0.7.5 h1:bJj+Pj19UZMIweq/iie+1u5YCdGrnxCT9yvm0e+Nd5M=
+github.com/hashicorp/go-retryablehttp v0.7.5/go.mod h1:Jy/gPYAdjqffZ/yFGCFV2doI5wjtH1ewM9u8iYVjtX8=
 github.com/hashicorp/go-rootcerts v1.0.0/go.mod h1:K6zTfqpRlCUIjkwsN4Z+hiSfzSTQa6eBIzfwKfwNnHU=
 github.com/hashicorp/go-safetemp v1.0.0 h1:2HR189eFNrjHQyENnQMMpCiBAsRxzbTMIgBhEyExpmo=
 github.com/hashicorp/go-safetemp v1.0.0/go.mod h1:oaerMy3BhqiTbVye6QuFhFtIceqFoDHxNAB65b+Rj1I=
