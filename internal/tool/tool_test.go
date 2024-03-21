@@ -65,7 +65,7 @@ func TestRun(t *testing.T) {
 		},
 		ScanOptions: flag.ScanOptions{
 			OfflineScan: true,
-			Scanners:    types.Scanners{types.SecretScanner, types.VulnerabilityScanner},
+			Scanners:    types.Scanners{types.VulnerabilityScanner},
 			Target:      sourceDir,
 		},
 		VulnerabilityOptions: flag.VulnerabilityOptions{
@@ -174,12 +174,6 @@ func TestRun(t *testing.T) {
 				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency package-1 (vuln id: vuln title) (update to vuln fixed)",
 			},
-			codacy.Issue{
-				File:      file2,
-				Line:      2,
-				PatternID: ruleIDSecret,
-				Message:   "Possible hardcoded secret: secret title",
-			},
 			codacy.FileError{
 				File:    file1,
 				Message: "Line numbers not supported",
@@ -187,6 +181,14 @@ func TestRun(t *testing.T) {
 			codacy.FileError{
 				File:    file2,
 				Message: "Line numbers not supported",
+			},
+			codacy.FileError{
+				File:    file1,
+				Message: "Failed to read source file",
+			},
+			codacy.FileError{
+				File:    file2,
+				Message: "Failed to read source file",
 			},
 		}
 		assert.ElementsMatch(t, expectedResults, results)
@@ -234,9 +236,10 @@ func TestRunNewRunnerError(t *testing.T) {
 	toolExecution := codacy.ToolExecution{
 		Patterns: &[]codacy.Pattern{
 			{
-				ID: ruleIDSecret,
+				ID: ruleIDVulnerability,
 			},
 		},
+		Files: &[]string{},
 	}
 
 	underTest := codacyTrivy{
@@ -284,7 +287,7 @@ func TestRunScanFilesystemError(t *testing.T) {
 		},
 		ScanOptions: flag.ScanOptions{
 			OfflineScan: true,
-			Scanners:    types.Scanners{types.SecretScanner, types.VulnerabilityScanner},
+			Scanners:    types.Scanners{types.VulnerabilityScanner},
 			Target:      sourceDir,
 		},
 		VulnerabilityOptions: flag.VulnerabilityOptions{

@@ -1,12 +1,16 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path"
 
+	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
-	"github.com/aquasecurity/trivy/pkg/types"
+	types "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/samber/lo"
 )
@@ -38,21 +42,63 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 		return []codacy.Result{}, nil
 	}
 
-	config, err := newConfiguration(*toolExecution.Patterns, toolExecution.SourceDir)
+	err := newConfiguration(*toolExecution.Patterns)
 	if err != nil {
 		return nil, err
 	}
 
-	issues, err := t.run(ctx, *config)
+	vulnerabilityScanningIssues, err := t.runVulnerabilityScanning(ctx, toolExecution)
 	if err != nil {
 		return nil, err
 	}
 
-	// Filter only valid results
-	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
+	secretScanningIssues, err := t.runSecretScanning(*toolExecution.Patterns, toolExecution.Files, toolExecution.SourceDir)
+	if err != nil {
+		return nil, err
+	}
+
+	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
+
+	return allIssues, nil
 }
 
-func (t codacyTrivy) run(ctx context.Context, config flag.Options) ([]codacy.Issue, error) {
+func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution codacy.ToolExecution) ([]codacy.Result, error) {
+	vulnerabilityScanningEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
+		return p.ID == ruleIDVulnerability
+	})
+	if !vulnerabilityScanningEnabled {
+		return []codacy.Result{}, nil
+	}
+
+	config := flag.Options{
+		GlobalOptions: flag.GlobalOptions{
+			// CacheDir needs to be explicitly set and match the directory in the Dockerfile.
+			// The cache dir will contain the pre-downloaded vulnerability DBs.
+			CacheDir: cacheDir,
+		},
+		DBOptions: flag.DBOptions{
+			// Do not try to update vulnerability DBs.
+			SkipDBUpdate:     true,
+			SkipJavaDBUpdate: true,
+		},
+		ReportOptions: flag.ReportOptions{
+			// Listing all packages will allow to obtain the line number of a vulnerability.
+			ListAllPkgs: true,
+		},
+		ScanOptions: flag.ScanOptions{
+			// Do not try to connect to the internet to download vulnerability DBs, for example.
+			OfflineScan: true,
+			Scanners:    types.Scanners{types.VulnerabilityScanner},
+			// Instead of scanning files individually, scan the whole source directory since it's faster.
+			// Then filter issues from files that were not supposed to be analysed.
+			Target: toolExecution.SourceDir,
+		},
+		VulnerabilityOptions: flag.VulnerabilityOptions{
+			// Only scan libraries not OS packages.
+			VulnType: []types.VulnType{types.VulnTypeLibrary},
+		},
+	}
+
 	runner, err := t.runnerFactory.NewRunner(ctx, config)
 	if err != nil {
 		return nil, err
@@ -76,7 +122,6 @@ func (t codacyTrivy) run(ctx context.Context, config flag.Options) ([]codacy.Iss
 			lineNumberByPackageId[pkgID(pkg.ID, pkg.Name, pkg.Version)] = lineNumber
 		}
 
-		// Vulnerability scanning results
 		for _, vuln := range result.Vulnerabilities {
 			ID := pkgID(vuln.PkgID, vuln.PkgName, vuln.InstalledVersion)
 			issues = append(
@@ -90,69 +135,29 @@ func (t codacyTrivy) run(ctx context.Context, config flag.Options) ([]codacy.Iss
 			)
 		}
 
-		// Secret scanning results
-		for _, secret := range result.Secrets {
-			issues = append(
-				issues,
-				codacy.Issue{
-					File:      result.Target,
-					Line:      secret.StartLine,
-					Message:   fmt.Sprintf("Possible hardcoded secret: %s", secret.Title),
-					PatternID: ruleIDSecret,
-				},
-			)
-		}
 	}
-	return issues, nil
+
+	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
 }
 
-func newConfiguration(patterns []codacy.Pattern, sourceDir string) (*flag.Options, error) {
-	scanners := types.Scanners{}
-	for _, pattern := range patterns {
-		switch pattern.ID {
-		case ruleIDSecret:
-			scanners = append(scanners, types.SecretScanner)
-		case ruleIDVulnerability:
-			scanners = append(scanners, types.VulnerabilityScanner)
-		}
+func newConfiguration(patterns []codacy.Pattern) error {
+	if len(patterns) == 0 {
+		return &ToolError{msg: "Failed to configure Codacy Trivy: no patterns configured"}
 	}
 
-	if len(scanners) == 0 {
-		return nil, &ToolError{msg: "Failed to configure Codacy Trivy: provided patterns don't match existing rules"}
+	noSupportedPatterns := lo.NoneBy(patterns, func(p codacy.Pattern) bool {
+		return p.ID == ruleIDSecret || p.ID == ruleIDVulnerability
+	})
+
+	if noSupportedPatterns {
+		return &ToolError{msg: "Failed to configure Codacy Trivy: provided patterns don't match existing rules"}
 	}
 
 	// The `quiet` field in global options is not used by the runner.
 	// This is the only way to suppress Trivy logs.
 	log.InitLogger(false, true)
 
-	return &flag.Options{
-		GlobalOptions: flag.GlobalOptions{
-			// CacheDir needs to be explicitly set and match the directory in the Dockerfile.
-			// The cache dir will contain the pre-downloaded vulnerability DBs.
-			CacheDir: cacheDir,
-		},
-		DBOptions: flag.DBOptions{
-			// Do not try to update vulnerability DBs.
-			SkipDBUpdate:     true,
-			SkipJavaDBUpdate: true,
-		},
-		ReportOptions: flag.ReportOptions{
-			// Listing all packages will allow to obtain the line number of a vulnerability.
-			ListAllPkgs: true,
-		},
-		ScanOptions: flag.ScanOptions{
-			// Do not try to connect to the internet to download vulnerability DBs, for example.
-			OfflineScan: true,
-			Scanners:    scanners,
-			// Instead of scanning files individually, scan the whole source directory since it's faster.
-			// Then filter issues from files that were not supposed to be analysed.
-			Target: sourceDir,
-		},
-		VulnerabilityOptions: flag.VulnerabilityOptions{
-			// Only scan libraries not OS packages.
-			VulnType: []types.VulnType{types.VulnTypeLibrary},
-		},
-	}, nil
+	return nil
 }
 
 // Results without a line number (0 is the empty value) can't be displayed by Codacy and are mapped to a `codacy.FileError`.
@@ -191,4 +196,56 @@ func pkgID(ID, name, version string) string {
 		return ID
 	}
 	return fmt.Sprintf("%s@%s", name, version)
+}
+
+// Running Trivy for secret scanning is not as efficient as running for vulnerability scanning.
+// It's much more efficient to run the two scan separately, even though that results in more wrapper code.
+func (t codacyTrivy) runSecretScanning(patterns []codacy.Pattern, files *[]string, sourceDir string) ([]codacy.Result, error) {
+	secretDetectionEnabled := lo.SomeBy(patterns, func(p codacy.Pattern) bool {
+		return p.ID == ruleIDSecret
+	})
+	if !secretDetectionEnabled {
+		return []codacy.Result{}, nil
+	}
+
+	if files == nil || len(*files) == 0 {
+		// TODO Run for all files in the source dir?
+		return []codacy.Result{}, nil
+	}
+
+	scanner := secret.NewScanner(&secret.Config{})
+
+	results := []codacy.Result{}
+
+	for _, f := range *files {
+
+		filePath := path.Join(sourceDir, f)
+		content, err := os.ReadFile(filePath)
+
+		if err != nil {
+			results = append(
+				results,
+				codacy.FileError{
+					File:    f,
+					Message: "Failed to read source file",
+				},
+			)
+		}
+		content = bytes.ReplaceAll(content, []byte("\r"), []byte(""))
+
+		secrets := scanner.Scan(secret.ScanArgs{FilePath: filePath, Content: content})
+
+		for _, result := range secrets.Findings {
+			results = append(
+				results,
+				codacy.Issue{
+					File:      f,
+					Message:   fmt.Sprintf("Possible hardcoded secret: %s", result.Title),
+					PatternID: ruleIDSecret,
+					Line:      result.StartLine,
+				},
+			)
+		}
+	}
+	return results, nil
 }
