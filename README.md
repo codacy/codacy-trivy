@@ -2,30 +2,33 @@
 
 This is the docker engine we use at Codacy to have [Trivy](https://github.com/aquasecurity/trivy) support.
 
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/fba4d728f5884881b14fb554f8ae1046)](https://app.codacy.com/gh/codacy/codacy-trivy/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![CircleCI](https://circleci.com/gh/codacy/codacy-trivy.svg?style=svg)](https://circleci.com/gh/codacy/codacy-trivy)
+
 ## Usage
 
 You can create the docker by doing:
 
-  ```bash
-  docker build -t codacy-trivy:latest .
-  ```
+```bash
+docker build -t codacy-trivy:latest .
+```
 
 The docker is ran with the following command:
 
-  ```bash
-  docker run -it -v $srcDir:/src codacy-trivy:latest
-  ```
+```bash
+docker run -it -v $srcDir:/src codacy-trivy:latest
+```
 
 ## Generate Docs
 
- 1. Update the version in `go.mod`
- 2. Install the dependencies:
+1.  Update the version in `go.mod`
+2.  Install the dependencies:
 
 ```bash
 go mod download
 ```
 
- 3. Run the DocGenerator:
+3.  Run the DocGenerator:
 
 ```bash
 go run ./doc-generator.go &&\
@@ -53,11 +56,11 @@ The `latest` tag is also available but you should avoid using it, as it is harde
 
 ### Among Codacy’s features
 
-- Identify new Static Analysis issues
-- Commit and Pull Request Analysis with GitHub, BitBucket/Stash, GitLab (and also direct git repositories)
-- Auto-comments on Commits and Pull Requests
-- Integrations with Slack, HipChat, Jira, YouTrack
-- Track issues in Code Style, Security, Error Proneness, Performance, Unused Code and other categories
+-   Identify new Static Analysis issues
+-   Commit and Pull Request Analysis with GitHub, BitBucket/Stash, GitLab (and also direct git repositories)
+-   Auto-comments on Commits and Pull Requests
+-   Integrations with Slack, HipChat, Jira, YouTrack
+-   Track issues in Code Style, Security, Error Proneness, Performance, Unused Code and other categories
 
 Codacy also helps keep track of Code Coverage, Code Duplication, and Code Complexity.
 

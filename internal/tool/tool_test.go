@@ -119,7 +119,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				Target: file2,
-				Secrets: []ftypes.SecretFinding{
+				Secrets: []types.DetectedSecret{
 					{
 						StartLine: 2,
 						Title:     "secret title",
@@ -138,7 +138,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				Target: "file-3",
-				Secrets: []ftypes.SecretFinding{
+				Secrets: []types.DetectedSecret{
 					{
 						StartLine: 10,
 						Title:     "unkown file",
