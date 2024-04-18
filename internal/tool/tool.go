@@ -191,9 +191,9 @@ func filterIssuesFromKnownFiles(issues []codacy.Issue, knownFiles []string) []co
 	})
 }
 
-func pkgID(ID, name, version string) string {
-	if ID != "" {
-		return ID
+func pkgID(id, name, version string) string {
+	if id != "" {
+		return id
 	}
 	return fmt.Sprintf("%s@%s", name, version)
 }

@@ -6,6 +6,7 @@
       "patternId": "secret",
       "category": "Security",
       "subcategory": "Cryptography",
+      "scanType": "ExposedSecrets",
       "level": "Error",
       "enabled": true
     },
@@ -13,6 +14,7 @@
       "patternId": "vulnerability",
       "category": "Security",
       "subcategory": "InsecureModulesLibraries",
+      "scanType": "OpenSourceDependencies",
       "level": "Error",
       "enabled": true
     }
