@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/aquasecurity/trivy v0.50.1
-	github.com/aquasecurity/trivy-db v0.0.0-20240327054820-0ccb5f01aad8
+	github.com/aquasecurity/trivy-db v0.0.0-20240401130858-5bfbd975e506
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.1.4
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
