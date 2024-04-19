@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine as builder
+FROM golang:1.22-alpine as builder
 
 WORKDIR /src
 
@@ -17,7 +17,7 @@ COPY docs docs
 
 RUN go run ./cmd/docgen
 
-FROM busybox
+FROM busybox:1.36
 
 RUN adduser -u 2004 -D docker
 
