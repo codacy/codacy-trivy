@@ -53,8 +53,7 @@ jobs:
             curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.47.0
             mkdir cache
             ./trivy --cache-dir ./cache image --download-db-only
-          # For now this step is not necessary, please uncomment when needed
-          # ./trivy --cache-dir ./cache image --download-java-db-only
+            ./trivy --cache-dir ./cache image --download-java-db-only
 
 workflows:
   compile_test_deploy:

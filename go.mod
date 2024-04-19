@@ -12,10 +12,7 @@ require (
 	golang.org/x/mod v0.16.0
 )
 
-replace (
-	github.com/aquasecurity/go-dep-parser => github.com/codacy/go-dep-parser v0.0.2
-	github.com/testcontainers/testcontainers-go => github.com/testcontainers/testcontainers-go v0.27.0
-)
+replace github.com/testcontainers/testcontainers-go => github.com/testcontainers/testcontainers-go v0.27.0
 
 require (
 	cloud.google.com/go v0.112.1 // indirect
