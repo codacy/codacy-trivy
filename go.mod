@@ -9,7 +9,7 @@ require (
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.4.0
-	golang.org/x/mod v0.15.0
+	golang.org/x/mod v0.17.0
 )
 
 replace github.com/aquasecurity/go-dep-parser => github.com/codacy/go-dep-parser v0.0.3
