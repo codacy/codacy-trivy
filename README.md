@@ -47,6 +47,13 @@ If you're using this docker image please guarantee that you're always using the 
 
 The `latest` tag is also available but you should avoid using it, as it is harder to track which version of the image is running and more difficult to roll back properly.
 
+## Updating Trivy
+
+After updating the Trivy version in the `go.mod` file, you need to update the version in the following files as well:
+
+- [`patterns.json`](/docs/patterns.json)
+- [`config.yml`](/.circleci/config.yml) for CircleCI
+
 ## What is Codacy?
 
 [Codacy](https://www.codacy.com/) is an Automated Code Review Tool that monitors your technical debt, helps you improve your code quality, teaches best practices to your developers, and helps you save time in Code Reviews.
