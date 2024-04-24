@@ -18,7 +18,7 @@ commands:
       - attach_workspace:
           at: ~/workdir
       - setup_remote_docker:
-          version: 20.10.14
+          version: docker24
       - run:
           name: << parameters.cmd_name >>
           command: << parameters.cmd >>
