@@ -3,7 +3,7 @@ module github.com/codacy/codacy-trivy
 go 1.21
 
 require (
-	github.com/aquasecurity/trivy v0.49.1
+	github.com/aquasecurity/trivy v0.49.1 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20231106053131-81d747dba6ac
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.2.0
 	github.com/samber/lo v1.39.0
