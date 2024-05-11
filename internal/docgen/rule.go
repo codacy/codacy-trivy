@@ -10,6 +10,7 @@ type Rule struct {
 	Level       string
 	Category    string
 	SubCategory string
+	ScanType    string
 	Enabled     bool
 }
 
@@ -19,6 +20,7 @@ func (r Rule) toCodacyPattern() codacy.Pattern {
 		Category:    r.Category,
 		Level:       r.Level,
 		SubCategory: r.SubCategory,
+		ScanType:    r.ScanType,
 		Enabled:     r.Enabled,
 	}
 }
@@ -60,6 +62,7 @@ func trivyRules() Rules {
 			Level:       "Error",
 			Category:    "Security",
 			SubCategory: "Cryptography",
+			ScanType:    "Secrets",
 			Enabled:     true,
 		},
 		{
@@ -69,6 +72,7 @@ func trivyRules() Rules {
 			Level:       "Error",
 			Category:    "Security",
 			SubCategory: "InsecureModulesLibraries",
+			ScanType:    "SCA",
 			Enabled:     true,
 		},
 	}
