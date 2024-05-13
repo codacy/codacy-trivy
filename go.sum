@@ -422,8 +422,8 @@ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211001041855-01bcc9b48dfe/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.2.0 h1:2rHGhdllDvzk4YvrMr8jOkIXeQWDUpaJbElQKzqJDZM=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.2.0/go.mod h1:74FKDkdXzHlZOLfjU9Khp8cvcz4sLB6S7I3eyzFJ/5I=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.2.1 h1:zJ9Znbq2sDLCYhNmC3u780MahJg7hyLp31rX8G3vsxw=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.2.1/go.mod h1:JujR4kg08zLUTU8oW3VNMztpQBOMqpMCwzkHrmlk230=
 github.com/codacy/go-dep-parser v0.0.3 h1:sdsHMjNECq6g1fXQYg7Aib30jVrPli/cjndo2pi1izo=
 github.com/codacy/go-dep-parser v0.0.3/go.mod h1:6sh6f0Ixlt+oIMEPGxJyDOmzB03tK2v2rsAlc/9q12g=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUoc7Ik9EfrFqcylYqgPZ9ANSbTAntnE=
