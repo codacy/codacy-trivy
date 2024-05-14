@@ -1,5 +1,7 @@
 # Codacy Trivy
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/9e436d3c549a44678fbcde130e3f7ecd)](https://app.codacy.com/gh/codacy/codacy-trivy?utm_source=github.com&utm_medium=referral&utm_content=codacy/codacy-trivy&utm_campaign=Badge_Grade)
+
 This is the docker engine we use at Codacy to have [Trivy](https://github.com/aquasecurity/trivy) support.
 
 ## Usage
