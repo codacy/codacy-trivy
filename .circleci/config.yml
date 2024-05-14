@@ -4,57 +4,20 @@ orbs:
   codacy: codacy/base@12.0.0
   codacy_plugins_test: codacy/plugins-test@2.0.11
 
-commands:
-  attach_run_command_and_persist:
-    description: "Runs a command"
-    parameters:
-      cmd_name:
-        description: The name of the command to run.
-        type: string
-      cmd:
-        description: The command itself.
-        type: string
-    steps:
-      - attach_workspace:
-          at: ~/workdir
-      - setup_remote_docker:
-          version: docker24
-      - run:
-          name: << parameters.cmd_name >>
-          command: << parameters.cmd >>
-      - persist_to_workspace:
-          root: ~/workdir
-          paths:
-            - "*"
+references:
+  install_trivy_and_download_dbs: &install_trivy_and_download_dbs
+    persist_to_workspace: true
+    # https://aquasecurity.github.io/trivy/v0.49/getting-started/installation/#install-script
+    cmd: |
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.49.1
+      mkdir cache
+      ./trivy --cache-dir ./cache image --download-db-only
 
-jobs:
-  build_and_publish_docker:
-    docker:
-      # https://hub.docker.com/r/cimg/base this image is the base image on which the docker commands will run
-      - image: cimg/base:2023.04
-    working_directory: ~/workdir
-    steps:
-      - attach_run_command_and_persist:
-          cmd_name: Build and Publish a docker image
-          cmd: |
-            docker build -t $CIRCLE_PROJECT_REPONAME:latest .
-            docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
-
-  install_trivy_and_download_dbs:
-    docker:
-      # https://hub.docker.com/r/cimg/base this image is the base image on which the docker commands will run
-      - image: cimg/base:2023.04
-    working_directory: ~/workdir
-    steps:
-      - attach_run_command_and_persist:
-          cmd_name: Install trivy and download DBs
-          # https://aquasecurity.github.io/trivy/v0.49/getting-started/installation/#install-script
-          cmd: |
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.49.1
-            mkdir cache
-            ./trivy --cache-dir ./cache image --download-db-only
-          # For now this step is not necessary, please uncomment when needed
-          # ./trivy --cache-dir ./cache image --download-java-db-only
+  build_and_publish_docker: &build_and_publish_docker
+    persist_to_workspace: true
+    cmd: |
+      docker build -t $CIRCLE_PROJECT_REPONAME:latest .
+      docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
 
 workflows:
   compile_test_deploy:
@@ -67,11 +30,13 @@ workflows:
             go test ./...
           requires:
             - codacy/checkout_and_version
-      - install_trivy_and_download_dbs:
+      - codacy/shell:
+          <<: *install_trivy_and_download_dbs
           name: install_trivy_and_download_dbs
           requires:
             - generate_and_test
-      - build_and_publish_docker:
+      - codacy/shell:
+          <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
             - install_trivy_and_download_dbs
@@ -112,11 +77,13 @@ workflows:
             go test ./...
           requires:
             - codacy/checkout_and_version
-      - install_trivy_and_download_dbs:
+      - codacy/shell:
+          <<: *install_trivy_and_download_dbs
           name: install_trivy_and_download_dbs
           requires:
             - generate_and_test
-      - build_and_publish_docker:
+      - codacy/shell:
+          <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
             - install_trivy_and_download_dbs
@@ -136,7 +103,6 @@ workflows:
             docker push --all-tags "codacy/$CIRCLE_PROJECT_REPONAME"
           requires:
             - plugins_test
-
       - codacy/mirror_to_ecr:
           context: CodacyAWS
           name: mirror_to_ecr_integration
