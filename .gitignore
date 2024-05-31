@@ -12,3 +12,6 @@ target
 bin
 cache
 *.gen.go
+.codacyrc
+docs/patterns.json
+docs/description

@@ -75,5 +75,15 @@ func trivyRules() Rules {
 			ScanType:    "SCA",
 			Enabled:     true,
 		},
+		{
+			ID:          "licensing",
+			Title:       "Restricted license detection",
+			Description: "Lerolero.",
+			Level:       "Error",
+			Category:    "Security",
+			SubCategory: "InsecureModulesLibraries",
+			ScanType:    "License",
+			Enabled:     true,
+		},
 	}
 }

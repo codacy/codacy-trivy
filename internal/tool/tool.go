@@ -8,6 +8,7 @@ import (
 	"path"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
 	types "github.com/aquasecurity/trivy/pkg/types"
@@ -18,6 +19,7 @@ import (
 const (
 	ruleIDSecret        string = "secret"
 	ruleIDVulnerability string = "vulnerability"
+	ruleIDLicensing     string = "licensing"
 
 	cacheDir string = "/dist/cache/codacy-trivy"
 )
@@ -47,7 +49,7 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 		return nil, err
 	}
 
-	vulnerabilityScanningIssues, err := t.runVulnerabilityScanning(ctx, toolExecution)
+	vulnerabilityAndLicensingScanningIssues, err := t.runVulnerabilityAndLicensingScanning(ctx, toolExecution)
 	if err != nil {
 		return nil, err
 	}
@@ -57,16 +59,19 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 		return nil, err
 	}
 
-	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
+	allIssues := append(vulnerabilityAndLicensingScanningIssues, secretScanningIssues...)
 
 	return allIssues, nil
 }
 
-func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution codacy.ToolExecution) ([]codacy.Result, error) {
+func (t codacyTrivy) runVulnerabilityAndLicensingScanning(ctx context.Context, toolExecution codacy.ToolExecution) ([]codacy.Result, error) {
 	vulnerabilityScanningEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
 		return p.ID == ruleIDVulnerability
 	})
-	if !vulnerabilityScanningEnabled {
+	licensingScanningEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
+		return p.ID == ruleIDLicensing
+	})
+	if !vulnerabilityScanningEnabled && !licensingScanningEnabled {
 		return []codacy.Result{}, nil
 	}
 
@@ -88,7 +93,8 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 		ScanOptions: flag.ScanOptions{
 			// Do not try to connect to the internet to download vulnerability DBs, for example.
 			OfflineScan: true,
-			Scanners:    types.Scanners{types.VulnerabilityScanner},
+			// Licensing scanning must to run along with vulnerability scanning to get line numbers information.
+			Scanners: types.Scanners{types.VulnerabilityScanner, types.LicenseScanner},
 			// Instead of scanning files individually, scan the whole source directory since it's faster.
 			// Then filter issues from files that were not supposed to be analysed.
 			Target: toolExecution.SourceDir,
@@ -96,6 +102,17 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 		VulnerabilityOptions: flag.VulnerabilityOptions{
 			// Only scan libraries not OS packages.
 			VulnType: []types.VulnType{types.VulnTypeLibrary},
+		},
+		LicenseOptions: flag.LicenseOptions{
+			LicenseConfidenceLevel: flag.LicenseConfidenceLevel.Default,
+			LicenseCategories: map[ftypes.LicenseCategory][]string{
+				ftypes.CategoryForbidden:    flag.LicenseForbidden.Default,
+				ftypes.CategoryRestricted:   flag.LicenseRestricted.Default,
+				ftypes.CategoryReciprocal:   flag.LicenseReciprocal.Default,
+				ftypes.CategoryNotice:       flag.LicenseNotice.Default,
+				ftypes.CategoryPermissive:   flag.LicensePermissive.Default,
+				ftypes.CategoryUnencumbered: flag.LicenseUnencumbered.Default,
+			},
 		},
 	}
 
@@ -105,34 +122,60 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 	}
 	defer runner.Close(ctx)
 
-	results, err := runner.ScanFilesystem(ctx, config)
+	report, err := runner.ScanFilesystem(ctx, config)
 	if err != nil {
 		return nil, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
 	}
 
-	issues := []codacy.Issue{}
-	for _, result := range results.Results {
-		// Make a map for faster lookup
-		lineNumberByPackageId := map[string]int{}
+	// Make a map for faster lookup
+	lineNumberByPackageId := map[string]int{}
+	lineNumberByPackageName := map[string]int{}
+	for _, result := range report.Results {
 		for _, pkg := range result.Packages {
 			lineNumber := 0
 			if len(pkg.Locations) > 0 {
 				lineNumber = pkg.Locations[0].StartLine
 			}
-			lineNumberByPackageId[pkgID(pkg.ID, pkg.Name, pkg.Version)] = lineNumber
+			lineNumberByPackageId[result.Target+pkgID(pkg.ID, pkg.Name, pkg.Version)] = lineNumber
+			lineNumberByPackageName[result.Target+pkg.Name] = lineNumber
+		}
+	}
+
+	issues := []codacy.Issue{}
+
+	for _, result := range report.Results {
+		if vulnerabilityScanningEnabled {
+			for _, vuln := range result.Vulnerabilities {
+				ID := pkgID(vuln.PkgID, vuln.PkgName, vuln.InstalledVersion)
+				issues = append(
+					issues,
+					codacy.Issue{
+						File:      result.Target,
+						Line:      lineNumberByPackageId[result.Target+ID],
+						Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) (update to %s)", ID, vuln.VulnerabilityID, vuln.Title, vuln.FixedVersion),
+						PatternID: ruleIDVulnerability,
+					},
+				)
+			}
 		}
 
-		for _, vuln := range result.Vulnerabilities {
-			ID := pkgID(vuln.PkgID, vuln.PkgName, vuln.InstalledVersion)
-			issues = append(
-				issues,
-				codacy.Issue{
-					File:      result.Target,
-					Line:      lineNumberByPackageId[ID],
-					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) (update to %s)", ID, vuln.VulnerabilityID, vuln.Title, vuln.FixedVersion),
-					PatternID: ruleIDVulnerability,
-				},
-			)
+		if licensingScanningEnabled {
+			for _, license := range result.Licenses {
+				// Only report forbidden and restricted licenses to avoid spamming the user.
+				if !lo.Contains([]ftypes.LicenseCategory{ftypes.CategoryForbidden, ftypes.CategoryRestricted}, license.Category) {
+					continue
+				}
+
+				issues = append(
+					issues,
+					codacy.Issue{
+						File:      result.Target,
+						Line:      lineNumberByPackageName[result.Target+license.PkgName],
+						Message:   fmt.Sprintf("%s license in %s is classified as %s.", license.Name, license.PkgName, license.Category),
+						PatternID: ruleIDLicensing,
+					},
+				)
+			}
 		}
 
 	}
@@ -146,7 +189,7 @@ func newConfiguration(patterns []codacy.Pattern) error {
 	}
 
 	noSupportedPatterns := lo.NoneBy(patterns, func(p codacy.Pattern) bool {
-		return p.ID == ruleIDSecret || p.ID == ruleIDVulnerability
+		return p.ID == ruleIDSecret || p.ID == ruleIDVulnerability || p.ID == ruleIDLicensing
 	})
 
 	if noSupportedPatterns {
