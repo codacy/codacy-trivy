@@ -1,6 +1,7 @@
 module github.com/codacy/codacy-trivy
 
-go 1.21
+go 1.22.0
+
 toolchain go1.22.3
 
 require (
@@ -12,8 +13,6 @@ require (
 	go.uber.org/mock v0.4.0
 	golang.org/x/mod v0.17.0
 )
-
-replace github.com/aquasecurity/go-dep-parser => github.com/codacy/go-dep-parser v0.0.3
 
 require (
 	cloud.google.com/go v0.112.1 // indirect
