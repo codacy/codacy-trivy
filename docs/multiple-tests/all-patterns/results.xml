@@ -1,10 +1,14 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <checkstyle version="1.5">
     <file name="aws-config.txt">
-        <error source="secret" line="1" message="Possible hardcoded secret: AWS Secret Access Key" severity="error" />
-        <error source="secret" line="2" message="Possible hardcoded secret: AWS Access Key ID" severity="error" />
+        <error source="secret" line="1" message="Possible hardcoded secret: AWS Secret Access Key"
+            severity="error" />
+        <error source="secret" line="2" message="Possible hardcoded secret: AWS Access Key ID"
+            severity="error" />
     </file>
-    <file name="dart/pubspec.lock">
-        <error source="vulnerability" line="20" message="Insecure dependency dio@4.0.0 (CVE-2021-31402: dio vulnerable to CRLF injection with HTTP method string) (update to 5.0.0)" severity="error" />
+    <file name="gradle/gradle.lockfile">
+        <error source="vulnerability" line="1"
+            message="Insecure dependency org.apache.logging.log4j:log4j-core:2.17.0 (CVE-2021-44832: log4j-core: remote code execution via JDBC Appender) (update to 2.3.2, 2.12.4, 2.17.1)"
+            severity="error" />
     </file>
 </checkstyle>
