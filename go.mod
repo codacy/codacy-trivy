@@ -5,7 +5,7 @@ go 1.22.0
 toolchain go1.22.3
 
 require (
-	github.com/aquasecurity/trivy v0.52.0 // Also update .config.yml
+	github.com/aquasecurity/trivy v0.52.1 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20231106053131-81d747dba6ac
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.2.1
 	github.com/samber/lo v1.39.0
