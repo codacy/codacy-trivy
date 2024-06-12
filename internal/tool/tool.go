@@ -1,11 +1,13 @@
 package tool
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	"github.com/aquasecurity/trivy/pkg/flag"
@@ -13,6 +15,7 @@ import (
 	types "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/samber/lo"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -124,12 +127,27 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 
 		for _, vuln := range result.Vulnerabilities {
 			ID := pkgID(vuln.PkgID, vuln.PkgName, vuln.InstalledVersion)
+
+			// If the line number is not available, try to find it in the map.
+			if value, ok := lineNumberByPackageId[ID]; !ok || value == 0 {
+				lineNumberByPackageId[ID], _ = fallbackSearchForLineNumber(toolExecution.SourceDir, result.Target, vuln.PkgName)
+			}
+
+			// find the smallest version increment that fixes a vulnerabillity
+			fixedVersion := findLeastDisruptiveFixedVersion(vuln)
+			fixedVersionMessage := ""
+			if len(fixedVersion) > 0 {
+				fixedVersionMessage = fmt.Sprintf("(update to %s)", fixedVersion)
+			} else {
+				fixedVersionMessage = "(no fix available)"
+			}
+
 			issues = append(
 				issues,
 				codacy.Issue{
 					File:      result.Target,
 					Line:      lineNumberByPackageId[ID],
-					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) (update to %s)", ID, vuln.VulnerabilityID, vuln.Title, vuln.FixedVersion),
+					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", ID, vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
 					PatternID: ruleIDVulnerability,
 				},
 			)
@@ -189,6 +207,50 @@ func filterIssuesFromKnownFiles(issues []codacy.Issue, knownFiles []string) []co
 			return issue.File == file
 		})
 	})
+}
+
+// If the line number is not available in the Trivy result, try to find it in the source file.
+// Returns 0 if the line number is not found.
+func fallbackSearchForLineNumber(sourceDir, fileName, pkgName string) (int, error) {
+	filePath := path.Join(sourceDir, fileName)
+	f, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	line := 1
+
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), pkgName) {
+			return line, nil
+		}
+		line++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, err
+	}
+
+	return 0, nil
+}
+
+// Find the smallest version increment that fixes a vulnerabillity, assuming semantic version format.
+// Doesn't support package managers that use a different versioning scheme. (like Ruby's `~>`)
+// Otherwise, return the original versions list.
+func findLeastDisruptiveFixedVersion(vuln types.DetectedVulnerability) string {
+	allUpdates := strings.Split(vuln.FixedVersion, ", ")
+	possibleUpdates := lo.Filter(allUpdates, func(v string, index int) bool {
+		return semver.Compare(fmt.Sprintf("v%s", v), fmt.Sprintf("v%s", vuln.InstalledVersion)) > 0
+	})
+	semver.Sort(possibleUpdates)
+
+	if len(possibleUpdates) > 0 {
+		return possibleUpdates[0]
+	}
+	return vuln.FixedVersion
 }
 
 func pkgID(id, name, version string) string {
