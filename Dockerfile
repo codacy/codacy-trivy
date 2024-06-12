@@ -5,17 +5,20 @@ WORKDIR /src
 COPY go.mod go.mod
 COPY go.sum go.sum
 
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 RUN go mod verify
 
 COPY cmd cmd
 COPY internal internal
 
-RUN go build -o bin/codacy-trivy -ldflags="-s -w" ./cmd/tool
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
+    go build -o bin/codacy-trivy -ldflags="-s -w" ./cmd/tool
 
 COPY docs docs
 
-RUN go run ./cmd/docgen
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
+    go run ./cmd/docgen
 
 FROM busybox
 
