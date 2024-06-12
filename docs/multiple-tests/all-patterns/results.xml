@@ -8,7 +8,7 @@
     </file>
     <file name="gradle/gradle.lockfile">
         <error source="vulnerability" line="1"
-            message="Insecure dependency org.apache.logging.log4j:log4j-core:2.17.0 (CVE-2021-44832: log4j-core: remote code execution via JDBC Appender) (update to 2.3.2, 2.12.4, 2.17.1)"
+            message="Insecure dependency org.apache.logging.log4j:log4j-core:2.17.0 (CVE-2021-44832: log4j-core: remote code execution via JDBC Appender) (update to 2.17.1)"
             severity="error" />
     </file>
 </checkstyle>
