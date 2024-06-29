@@ -46,6 +46,11 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 		return []codacy.Result{}, nil
 	}
 
+	if toolExecution.Files == nil || len(*toolExecution.Files) == 0 {
+		// TODO Run for all files in the source dir?
+		return []codacy.Result{}, nil
+	}
+
 	err := newConfiguration(*toolExecution.Patterns)
 	if err != nil {
 		return nil, err
@@ -273,11 +278,6 @@ func (t codacyTrivy) runSecretScanning(patterns []codacy.Pattern, files *[]strin
 		return p.ID == ruleIDSecret
 	})
 	if !secretDetectionEnabled {
-		return []codacy.Result{}, nil
-	}
-
-	if files == nil || len(*files) == 0 {
-		// TODO Run for all files in the source dir?
 		return []codacy.Result{}, nil
 	}
 
