@@ -82,7 +82,7 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 	// Workaround for detecting vulnerabilities in the Go standard library.
 	// Mimics the behavior of govulncheck by replacing the go version directive with a require statement for stdlib. https://go.dev/blog/govulncheck
 	// This is only supported by Trivy for Go binaries. https://github.com/aquasecurity/trivy/issues/4133
-	patchGoModFilesForStdlib(toolExecution.SourceDir, *toolExecution.Files)
+	toolExecution.SourceDir = patchGoModFilesForStdlib(toolExecution.SourceDir, *toolExecution.Files)
 
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
