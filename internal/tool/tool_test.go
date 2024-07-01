@@ -210,12 +210,16 @@ func TestRunNoPatterns(t *testing.T) {
 
 func TestRunConfigurationError(t *testing.T) {
 	// Arrange
+	file1 := "file-1"
+	file2 := "file-2"
+
 	toolExecution := codacy.ToolExecution{
 		Patterns: &[]codacy.Pattern{
 			{
 				ID: "unknown",
 			},
 		},
+		Files: &[]string{file1, file2},
 	}
 
 	underTest := codacyTrivy{}
@@ -233,13 +237,16 @@ func TestRunConfigurationError(t *testing.T) {
 
 func TestRunNewRunnerError(t *testing.T) {
 	// Arrange
+	file1 := "file-1"
+	file2 := "file-2"
+
 	toolExecution := codacy.ToolExecution{
 		Patterns: &[]codacy.Pattern{
 			{
 				ID: ruleIDVulnerability,
 			},
 		},
-		Files: &[]string{},
+		Files: &[]string{file1, file2},
 	}
 
 	underTest := codacyTrivy{
@@ -261,6 +268,9 @@ func TestRunScanFilesystemError(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
+	file1 := "file-1"
+	file2 := "file-2"
+
 	sourceDir := "src"
 	toolExecution := codacy.ToolExecution{
 		Patterns: &[]codacy.Pattern{
@@ -272,6 +282,7 @@ func TestRunScanFilesystemError(t *testing.T) {
 			},
 		},
 		SourceDir: sourceDir,
+		Files:     &[]string{file1, file2},
 	}
 
 	config := flag.Options{

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
@@ -45,6 +46,11 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 		return []codacy.Result{}, nil
 	}
 
+	if toolExecution.Files == nil || len(*toolExecution.Files) == 0 {
+		// TODO Run for all files in the source dir?
+		return []codacy.Result{}, nil
+	}
+
 	err := newConfiguration(*toolExecution.Patterns)
 	if err != nil {
 		return nil, err
@@ -72,6 +78,11 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 	if !vulnerabilityScanningEnabled {
 		return []codacy.Result{}, nil
 	}
+
+	// Workaround for detecting vulnerabilities in the Go standard library.
+	// Mimics the behavior of govulncheck by replacing the go version directive with a require statement for stdlib. https://go.dev/blog/govulncheck
+	// This is only supported by Trivy for Go binaries. https://github.com/aquasecurity/trivy/issues/4133
+	toolExecution.SourceDir = patchGoModFilesForStdlib(toolExecution.SourceDir, *toolExecution.Files)
 
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
@@ -212,7 +223,7 @@ func filterIssuesFromKnownFiles(issues []codacy.Issue, knownFiles []string) []co
 // If the line number is not available in the Trivy result, try to find it in the source file.
 // Returns 0 if the line number is not found.
 func fallbackSearchForLineNumber(sourceDir, fileName, pkgName string) (int, error) {
-	filePath := path.Join(sourceDir, fileName)
+	filePath := filepath.Join(sourceDir, fileName)
 	f, err := os.Open(filePath)
 	if err != nil {
 		return 0, err
@@ -267,11 +278,6 @@ func (t codacyTrivy) runSecretScanning(patterns []codacy.Pattern, files *[]strin
 		return p.ID == ruleIDSecret
 	})
 	if !secretDetectionEnabled {
-		return []codacy.Result{}, nil
-	}
-
-	if files == nil || len(*files) == 0 {
-		// TODO Run for all files in the source dir?
 		return []codacy.Result{}, nil
 	}
 
