@@ -8,7 +8,7 @@ require (
 	github.com/aquasecurity/trivy v0.52.2 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20231106053131-81d747dba6ac
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.2.1
-	github.com/samber/lo v1.39.0
+	github.com/samber/lo v1.44.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.4.0
 	golang.org/x/mod v0.18.0
