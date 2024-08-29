@@ -10,7 +10,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/commands/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
-	"github.com/aquasecurity/trivy/pkg/types"
+	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -60,21 +60,22 @@ func TestRun(t *testing.T) {
 			SkipDBUpdate:     true,
 			SkipJavaDBUpdate: true,
 		},
+		PackageOptions: flag.PackageOptions{
+			PkgTypes:         []string{ptypes.PkgTypeLibrary},
+			PkgRelationships: ftypes.Relationships,
+		},
 		ReportOptions: flag.ReportOptions{
 			ListAllPkgs: true,
 		},
 		ScanOptions: flag.ScanOptions{
 			OfflineScan: true,
-			Scanners:    types.Scanners{types.VulnerabilityScanner},
+			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
 			Target:      sourceDir,
-		},
-		VulnerabilityOptions: flag.VulnerabilityOptions{
-			VulnType: []types.VulnType{types.VulnTypeLibrary},
 		},
 	}
 
-	report := types.Report{
-		Results: types.Results{
+	report := ptypes.Report{
+		Results: ptypes.Results{
 			{
 				Target: file1,
 				Packages: ftypes.Packages{
@@ -90,7 +91,7 @@ func TestRun(t *testing.T) {
 						ID: packageID2,
 					},
 				},
-				Vulnerabilities: []types.DetectedVulnerability{
+				Vulnerabilities: []ptypes.DetectedVulnerability{
 					{
 						PkgID:           packageID1,
 						VulnerabilityID: "vuln id",
@@ -119,13 +120,13 @@ func TestRun(t *testing.T) {
 			},
 			{
 				Target: file2,
-				Secrets: []types.DetectedSecret{
+				Secrets: []ptypes.DetectedSecret{
 					{
 						StartLine: 2,
 						Title:     "secret title",
 					},
 				},
-				Vulnerabilities: []types.DetectedVulnerability{
+				Vulnerabilities: []ptypes.DetectedVulnerability{
 					{
 						PkgID:           "packageID10",
 						VulnerabilityID: "no line",
@@ -138,7 +139,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				Target: "file-3",
-				Secrets: []types.DetectedSecret{
+				Secrets: []ptypes.DetectedSecret{
 					{
 						StartLine: 10,
 						Title:     "unkown file",
@@ -293,16 +294,17 @@ func TestRunScanFilesystemError(t *testing.T) {
 			SkipDBUpdate:     true,
 			SkipJavaDBUpdate: true,
 		},
+		PackageOptions: flag.PackageOptions{
+			PkgTypes:         []string{ptypes.PkgTypeLibrary},
+			PkgRelationships: ftypes.Relationships,
+		},
 		ReportOptions: flag.ReportOptions{
 			ListAllPkgs: true,
 		},
 		ScanOptions: flag.ScanOptions{
 			OfflineScan: true,
-			Scanners:    types.Scanners{types.VulnerabilityScanner},
+			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
 			Target:      sourceDir,
-		},
-		VulnerabilityOptions: flag.VulnerabilityOptions{
-			VulnType: []types.VulnType{types.VulnTypeLibrary},
 		},
 	}
 
@@ -315,7 +317,7 @@ func TestRunScanFilesystemError(t *testing.T) {
 	mockRunner.EXPECT().ScanFilesystem(
 		gomock.Eq(ctx),
 		gomock.Eq(config),
-	).Return(types.Report{}, assert.AnError).Times(1)
+	).Return(ptypes.Report{}, assert.AnError).Times(1)
 	mockRunner.EXPECT().Close(
 		gomock.Eq(ctx),
 	).Return(nil).Times(1)
