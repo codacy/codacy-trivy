@@ -60,6 +60,9 @@ func TestRun(t *testing.T) {
 			SkipDBUpdate:     true,
 			SkipJavaDBUpdate: true,
 		},
+		PackageOptions: flag.PackageOptions{
+			PkgTypes: []string{types.PkgTypeLibrary},
+		},
 		ReportOptions: flag.ReportOptions{
 			ListAllPkgs: true,
 		},
@@ -67,9 +70,6 @@ func TestRun(t *testing.T) {
 			OfflineScan: true,
 			Scanners:    types.Scanners{types.VulnerabilityScanner},
 			Target:      sourceDir,
-		},
-		VulnerabilityOptions: flag.VulnerabilityOptions{
-			VulnType: []types.VulnType{types.VulnTypeLibrary},
 		},
 	}
 
@@ -293,6 +293,9 @@ func TestRunScanFilesystemError(t *testing.T) {
 			SkipDBUpdate:     true,
 			SkipJavaDBUpdate: true,
 		},
+		PackageOptions: flag.PackageOptions{
+			PkgTypes: []string{types.PkgTypeLibrary},
+		},
 		ReportOptions: flag.ReportOptions{
 			ListAllPkgs: true,
 		},
@@ -300,9 +303,6 @@ func TestRunScanFilesystemError(t *testing.T) {
 			OfflineScan: true,
 			Scanners:    types.Scanners{types.VulnerabilityScanner},
 			Target:      sourceDir,
-		},
-		VulnerabilityOptions: flag.VulnerabilityOptions{
-			VulnType: []types.VulnType{types.VulnTypeLibrary},
 		},
 	}
 

@@ -95,6 +95,10 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 			SkipDBUpdate:     true,
 			SkipJavaDBUpdate: true,
 		},
+		PackageOptions: flag.PackageOptions{
+			// Only scan libraries not OS packages.
+			PkgTypes: []string{types.PkgTypeLibrary},
+		},
 		ReportOptions: flag.ReportOptions{
 			// Listing all packages will allow to obtain the line number of a vulnerability.
 			ListAllPkgs: true,
@@ -106,10 +110,6 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 			// Instead of scanning files individually, scan the whole source directory since it's faster.
 			// Then filter issues from files that were not supposed to be analysed.
 			Target: toolExecution.SourceDir,
-		},
-		VulnerabilityOptions: flag.VulnerabilityOptions{
-			// Only scan libraries not OS packages.
-			VulnType: []types.VulnType{types.VulnTypeLibrary},
 		},
 	}
 
