@@ -11,8 +11,10 @@ import (
 	"strings"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
+	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	types "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/samber/lo"
@@ -97,7 +99,9 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 		},
 		PackageOptions: flag.PackageOptions{
 			// Only scan libraries not OS packages.
-			PkgTypes: []string{types.PkgTypeLibrary},
+			PkgTypes: []string{ptypes.PkgTypeLibrary},
+			// Scan libraries with all possible relationships (direct, indirect, etc).
+			PkgRelationships: ftypes.Relationships,
 		},
 		ReportOptions: flag.ReportOptions{
 			// Listing all packages will allow to obtain the line number of a vulnerability.
@@ -106,7 +110,7 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 		ScanOptions: flag.ScanOptions{
 			// Do not try to connect to the internet to download vulnerability DBs, for example.
 			OfflineScan: true,
-			Scanners:    types.Scanners{types.VulnerabilityScanner},
+			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
 			// Instead of scanning files individually, scan the whole source directory since it's faster.
 			// Then filter issues from files that were not supposed to be analysed.
 			Target: toolExecution.SourceDir,
