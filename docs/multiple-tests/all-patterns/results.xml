@@ -1,14 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <checkstyle version="1.5">
     <file name="aws-config.txt">
-        <error source="secret" line="1" message="Possible hardcoded secret: AWS Secret Access Key"
-            severity="error" />
-        <error source="secret" line="2" message="Possible hardcoded secret: AWS Access Key ID"
-            severity="error" />
-    </file>
+        <error
+            source="secret"
+            line="1"
+            message="Possible hardcoded secret: AWS Secret Access Key"
+            severity="error"
+        />
+        <error
+            source="secret"
+            line="2"
+            message="Possible hardcoded secret: AWS Access Key ID"
+            severity="error"
+        />
+    </file>        
     <file name="gradle/gradle.lockfile">
-        <error source="vulnerability" line="1"
+        <error
+            source="vulnerability_medium"
+            line="1"
             message="Insecure dependency org.apache.logging.log4j:log4j-core:2.17.0 (CVE-2021-44832: log4j-core: remote code execution via JDBC Appender) (update to 2.17.1)"
-            severity="error" />
+            severity="warning"
+        />
+        <error
+            source="vulnerability"
+            line="2"
+            message="Insecure dependency org.apache.dolphinscheduler:dolphinscheduler-task-api:3.2.1 (CVE-2024-43202: Apache Dolphinscheduler Code Injection vulnerability) (update to 3.2.2)"
+            severity="error"
+        />
+        <error
+            source="vulnerability"
+            line="3"
+            message="Insecure dependency org.apache.seatunnel:seatunnel:1.0.0 (CVE-2023-49198: Apache SeaTunnel SQL Injection vulnerability) (update to 1.0.1)"
+            severity="error"
+        />
+        <error
+            source="vulnerability_minor"
+            line="4"
+            message="Insecure dependency org.apache.cxf:cxf-rt-transports-http:4.0.0 (CVE-2024-41172: apache: cxf: org.apache.cxf:cxf-rt-transports-http: unrestricted memory consumption in CXF HTTP clients) (update to 4.0.5)"
+            severity="info"
+        />
     </file>
 </checkstyle>
