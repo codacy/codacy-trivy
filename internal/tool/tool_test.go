@@ -4,6 +4,8 @@ package tool
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	dbtypes "github.com/aquasecurity/trivy-db/pkg/types"
@@ -29,13 +31,29 @@ func TestRun(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	file1 := "file-1"
-	file2 := "file-2"
-
 	packageID1 := "package-1"
 	packageID2 := "package-2"
 
-	sourceDir := "src"
+	// Create a temporary file with a secret
+	srcDir, err := os.MkdirTemp("", "tool.TestRun")
+	if err != nil {
+		assert.FailNow(t, "Failed to create tmp directory", err.Error())
+	}
+	defer os.RemoveAll(srcDir)
+
+	f, err := os.CreateTemp(srcDir, "file-")
+	if err != nil {
+		assert.FailNow(t, "Failed to create tmp file", err.Error())
+	}
+	defer f.Close()
+
+	if _, err := f.Write([]byte("AWS_ACCESS_KEY_ID=AKIA0123456789ABCDEF")); err != nil {
+		assert.FailNow(t, "Failed to write to tmp file", err.Error())
+	}
+
+	fileName := filepath.Base(f.Name())
+	nonExistentFileName := "does-not-exist"
+
 	toolExecution := codacy.ToolExecution{
 		Patterns: &[]codacy.Pattern{
 			{
@@ -48,8 +66,8 @@ func TestRun(t *testing.T) {
 				ID: "unknown",
 			},
 		},
-		Files:     &[]string{file1, file2},
-		SourceDir: sourceDir,
+		Files:     &[]string{fileName, nonExistentFileName},
+		SourceDir: srcDir,
 	}
 
 	config := flag.Options{
@@ -70,14 +88,14 @@ func TestRun(t *testing.T) {
 		ScanOptions: flag.ScanOptions{
 			OfflineScan: true,
 			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
-			Target:      sourceDir,
+			Target:      srcDir,
 		},
 	}
 
 	report := ptypes.Report{
 		Results: ptypes.Results{
 			{
-				Target: file1,
+				Target: fileName,
 				Packages: ftypes.Packages{
 					{
 						ID: packageID1,
@@ -92,57 +110,59 @@ func TestRun(t *testing.T) {
 					},
 				},
 				Vulnerabilities: []ptypes.DetectedVulnerability{
+					// Will generate an issue
 					{
 						PkgID:           packageID1,
 						VulnerabilityID: "vuln id",
 						Vulnerability: dbtypes.Vulnerability{
-							Title: "vuln title",
+							Severity: "CRITICAL",
+							Title:    "vuln title",
 						},
 						FixedVersion: "vuln fixed",
 					},
+					// Will generate an issue
+					{
+						PkgID:           packageID1,
+						VulnerabilityID: "vuln id no fixed version",
+						Vulnerability: dbtypes.Vulnerability{
+							Severity: "HIGH",
+							Title:    "vuln no fixed version",
+						},
+					},
+					// Will generate a file error
 					{
 						PkgID:           packageID2,
 						VulnerabilityID: "no line",
 						Vulnerability: dbtypes.Vulnerability{
-							Title: "no line",
+							Severity: "HIGH",
+							Title:    "no line",
 						},
 						FixedVersion: "no line",
 					},
+					// Will be filtered out due to the severity
 					{
-						PkgID:           "packageID10",
-						VulnerabilityID: "no line",
+						PkgID:           packageID1,
+						VulnerabilityID: "filtered out by severity",
 						Vulnerability: dbtypes.Vulnerability{
-							Title: "no line",
+							Severity: "LOW",
+							Title:    "filtered out by severity",
 						},
-						FixedVersion: "no line",
+						FixedVersion: "filtered out by severity",
 					},
 				},
 			},
 			{
-				Target: file2,
-				Secrets: []ptypes.DetectedSecret{
-					{
-						StartLine: 2,
-						Title:     "secret title",
-					},
-				},
+				Target: "will be filtered out",
 				Vulnerabilities: []ptypes.DetectedVulnerability{
+					// Will be filtered out because it belongs to a file that is not in the execution configuration
 					{
-						PkgID:           "packageID10",
-						VulnerabilityID: "no line",
+						PkgID:           packageID1,
+						VulnerabilityID: "unconfigured file",
 						Vulnerability: dbtypes.Vulnerability{
-							Title: "no line",
+							Severity: "High",
+							Title:    "unconfigured file",
 						},
 						FixedVersion: "no line",
-					},
-				},
-			},
-			{
-				Target: "file-3",
-				Secrets: []ptypes.DetectedSecret{
-					{
-						StartLine: 10,
-						Title:     "unkown file",
 					},
 				},
 			},
@@ -170,25 +190,29 @@ func TestRun(t *testing.T) {
 	if assert.NoError(t, err) {
 		expectedResults := []codacy.Result{
 			codacy.Issue{
-				File:      file1,
+				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency package-1 (vuln id: vuln title) (update to vuln fixed)",
 			},
+			codacy.Issue{
+				File:      fileName,
+				Line:      1,
+				PatternID: ruleIDVulnerability,
+				Message:   "Insecure dependency package-1 (vuln id no fixed version: vuln no fixed version) (no fix available)",
+			},
 			codacy.FileError{
-				File:    file1,
+				File:    fileName,
 				Message: "Line numbers not supported",
 			},
-			codacy.FileError{
-				File:    file2,
-				Message: "Line numbers not supported",
+			codacy.Issue{
+				File:      fileName,
+				Line:      1,
+				PatternID: ruleIDSecret,
+				Message:   "Possible hardcoded secret: AWS Access Key ID",
 			},
 			codacy.FileError{
-				File:    file1,
-				Message: "Failed to read source file",
-			},
-			codacy.FileError{
-				File:    file2,
+				File:    nonExistentFileName,
 				Message: "Failed to read source file",
 			},
 		}
@@ -196,44 +220,17 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestRunNoPatterns(t *testing.T) {
-	// Arrange
+func TestRunInvalidExecutionConfiguration(t *testing.T) {
+	// Arrage
 	underTest := codacyTrivy{}
 
 	// Act
 	results, err := underTest.Run(context.Background(), codacy.ToolExecution{})
 
 	// Assert
-	if assert.NoError(t, err) {
-		assert.Empty(t, results)
-	}
-}
-
-func TestRunConfigurationError(t *testing.T) {
-	// Arrange
-	file1 := "file-1"
-	file2 := "file-2"
-
-	toolExecution := codacy.ToolExecution{
-		Patterns: &[]codacy.Pattern{
-			{
-				ID: "unknown",
-			},
-		},
-		Files: &[]string{file1, file2},
-	}
-
-	underTest := codacyTrivy{}
-
-	// Act
-	config, err := underTest.Run(context.Background(), toolExecution)
-
-	// Assert
-	if assert.Error(t, err) {
-		expectedError := &ToolError{msg: "Failed to configure Codacy Trivy: provided patterns don't match existing rules"}
-		assert.Equal(t, expectedError, err)
-		assert.Nil(t, config)
-	}
+	expectedErr := &ToolError{msg: "Failed to configure Codacy Trivy: no patterns configured"}
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, results)
 }
 
 func TestRunNewRunnerError(t *testing.T) {
@@ -330,6 +327,278 @@ func TestRunScanFilesystemError(t *testing.T) {
 		expectedError := &ToolError{msg: "Failed to run Codacy Trivy", w: assert.AnError}
 		assert.Equal(t, expectedError, err)
 		assert.Nil(t, issues)
+	}
+}
+
+func TestRunVulnerabilityScanningNotEnabled(t *testing.T) {
+	toolExecution := codacy.ToolExecution{
+		Patterns: &[]codacy.Pattern{codacy.Pattern{ID: ruleIDSecret}},
+	}
+	underTest := codacyTrivy{}
+
+	// Act
+	results, err := underTest.runVulnerabilityScanning(context.Background(), toolExecution)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestRunSecretScanningNotEnabled(t *testing.T) {
+	toolExecution := codacy.ToolExecution{
+		Patterns: &[]codacy.Pattern{codacy.Pattern{ID: ruleIDVulnerabilityMedium}},
+	}
+	underTest := codacyTrivy{}
+
+	// Act
+	results := underTest.runSecretScanning(toolExecution)
+
+	// Assert
+	assert.Empty(t, results)
+}
+
+func TestValidateExecutionConfiguration(t *testing.T) {
+	// Arrange
+	type testData struct {
+		executionConfiguration codacy.ToolExecution
+		errMsg                 string
+	}
+	testSet := map[string]testData{
+		"no patterns": {
+			executionConfiguration: codacy.ToolExecution{},
+			errMsg:                 "Failed to configure Codacy Trivy: no patterns configured",
+		},
+		"unknown patterns": {
+			executionConfiguration: codacy.ToolExecution{
+				Patterns: &[]codacy.Pattern{
+					{
+						ID: "unknown",
+					},
+				},
+			},
+			errMsg: "Failed to configure Codacy Trivy: configured patterns don't match existing rules (provided [unknown])",
+		},
+		"no files": {
+			executionConfiguration: codacy.ToolExecution{
+				Patterns: &[]codacy.Pattern{
+					{
+						ID: ruleIDVulnerability,
+					},
+				},
+			},
+			errMsg: "Failed to configure Codacy Trivy: no files to analyse",
+		},
+	}
+
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			// Act
+			err := validateExecutionConfiguration(testData.executionConfiguration)
+
+			// Assert
+			expectedErr := &ToolError{msg: testData.errMsg}
+			assert.Equal(t, expectedErr, err)
+		})
+	}
+}
+
+func TestGetRuleIdFromTrivySeverity(t *testing.T) {
+	// Arrange
+	type testData struct {
+		trivySeverity  string
+		expectedRuleId string
+		expectedErr    error
+	}
+
+	testSet := map[string]testData{
+		"low": {
+			trivySeverity:  "LoW",
+			expectedRuleId: ruleIDVulnerabilityMinor,
+		},
+		"medium": {
+			trivySeverity:  "medium",
+			expectedRuleId: ruleIDVulnerabilityMedium,
+		},
+		"high": {
+			trivySeverity:  "hiGh",
+			expectedRuleId: ruleIDVulnerability,
+		},
+		"critical": {
+			trivySeverity:  "CrItIcAl",
+			expectedRuleId: ruleIDVulnerability,
+		},
+		"unknown": {
+			trivySeverity: "unknown",
+			expectedErr:   &ToolError{msg: "Failed to run Codacy Trivy: unexpected Trivy severity unknown"},
+		},
+	}
+
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			// Act
+			ruleId, err := getRuleIdFromTrivySeverity(testData.trivySeverity)
+
+			// Assert
+			assert.Equal(t, testData.expectedRuleId, ruleId)
+			assert.Equal(t, testData.expectedErr, err)
+		})
+	}
+}
+
+func TestGetTrivySeveritiesFromPatterns(t *testing.T) {
+	// Assert
+	patterns := []codacy.Pattern{
+		{ID: ruleIDVulnerability},
+		{ID: ruleIDVulnerabilityMedium},
+		{ID: ruleIDVulnerabilityMinor},
+		{ID: ruleIDSecret},
+		{ID: "Unknown"},
+	}
+
+	// Act
+	result := getTrivySeveritiesFromPatterns(patterns)
+
+	// Assert
+	expectedSeverities := []dbtypes.Severity{
+		dbtypes.SeverityCritical,
+		dbtypes.SeverityHigh,
+		dbtypes.SeverityMedium,
+		dbtypes.SeverityLow,
+	}
+	assert.ElementsMatch(t, expectedSeverities, result)
+}
+
+func TestFallbackSearchForLineNumber(t *testing.T) {
+	type testData struct {
+		pkgName            string
+		expectedLineNumber int
+	}
+	testSet := map[string]testData{
+		"pkgName found": {
+			pkgName:            "pkgName",
+			expectedLineNumber: 2,
+		},
+		"pkgName not found": {
+			pkgName:            "not found",
+			expectedLineNumber: 0,
+		},
+	}
+
+	// Arrange
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			srcDir, err := os.MkdirTemp("", "tool.TestFallbackSearchForLineNumber")
+			if err != nil {
+				assert.FailNow(t, "Failed to create tmp directory", err.Error())
+			}
+			defer os.RemoveAll(srcDir)
+
+			f, err := os.CreateTemp(srcDir, "file-")
+			if err != nil {
+				assert.FailNow(t, "Failed to create tmp file", err.Error())
+			}
+			defer f.Close()
+
+			if _, err := f.Write([]byte("something else\npkgName")); err != nil {
+				assert.FailNow(t, "Failed to write to tmp file", err.Error())
+			}
+
+			fileName := filepath.Base(f.Name())
+
+			// Act
+			lineNumber := fallbackSearchForLineNumber(srcDir, fileName, testData.pkgName)
+
+			// Assert
+			assert.Equal(t, testData.expectedLineNumber, lineNumber)
+		})
+	}
+}
+
+func TestFallbackSearchForLineNumber_NonExistenFile(t *testing.T) {
+	// Act
+	lineNumber := fallbackSearchForLineNumber(".", "non-existent", "not used")
+
+	// Assert
+	expectedLineNumber := 0
+	assert.Equal(t, expectedLineNumber, lineNumber)
+}
+
+func TestFindLeastDisruptiveFixedVerstion(t *testing.T) {
+	type testData struct {
+		fixedVersion         string
+		installedVersion     string
+		expectedFixedVersion string
+	}
+
+	testSet := map[string]testData{
+		"semver with expected format": {
+			fixedVersion:         "1.2.3, 3.2.1, 1.2.5",
+			installedVersion:     "1.2.4",
+			expectedFixedVersion: "1.2.5",
+		},
+		"not semver with expected format": {
+			fixedVersion:         "vê um três, vê dois um",
+			installedVersion:     "installed version",
+			expectedFixedVersion: "vê um três, vê dois um",
+		},
+		"semver without expected format": {
+			fixedVersion:         "1.2.3 ~> 3.2.1 ~> 1.2.5",
+			installedVersion:     "1.2.4",
+			expectedFixedVersion: "1.2.3 ~> 3.2.1 ~> 1.2.5",
+		},
+	}
+
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			// Act
+			fixedVersion := findLeastDisruptiveFixedVersion(
+				ptypes.DetectedVulnerability{
+					FixedVersion:     testData.fixedVersion,
+					InstalledVersion: testData.installedVersion,
+				},
+			)
+
+			// Assert
+			assert.Equal(t, testData.expectedFixedVersion, fixedVersion)
+		})
+	}
+
+	vulnerability := ptypes.DetectedVulnerability{
+		FixedVersion: "1.2.3, 3.2.1, 1.2.4",
+	}
+
+	//
+	findLeastDisruptiveFixedVersion(vulnerability)
+}
+
+func TestPkgId(t *testing.T) {
+	// Arrange
+	type testData struct {
+		id            string
+		name          string
+		version       string
+		expectedPkgId string
+	}
+	testSet := map[string]testData{
+		"with ID": {
+			id:            "id",
+			expectedPkgId: "id",
+		},
+		"with name and version": {
+			name:          "name",
+			version:       "version",
+			expectedPkgId: "name@version",
+		},
+	}
+
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			// Act
+			id := pkgID(testData.id, testData.name, testData.version)
+
+			// Assert
+			assert.Equal(t, testData.expectedPkgId, id)
+		})
 	}
 }
 
