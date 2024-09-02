@@ -171,7 +171,7 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 				fixedVersionMessage = "(no fix available)"
 			}
 
-			ruleId, err := getRuleIdFromTrivySeverity(vuln.Severity)
+			ruleID, err := getRuleIDFromTrivySeverity(vuln.Severity)
 			// This should not be possible since we filter out vulnerabilities with unknown severities. Still, it's a failsafe.
 			if err != nil {
 				return nil, err
@@ -183,7 +183,7 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 					File:      result.Target,
 					Line:      lineNumberByPackageId[ID],
 					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", ID, vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
-					PatternID: ruleId,
+					PatternID: ruleID,
 				},
 			)
 		}
@@ -264,9 +264,9 @@ func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
 	return nil
 }
 
-// getRuleIdFromTrivySeverity converts from Trivy severity to Codacy's rule (or pattern) IDs.
+// getRuleIDFromTrivySeverity converts from Trivy severity to Codacy's rule (or pattern) IDs.
 // If there is no match, an error is returned.
-func getRuleIdFromTrivySeverity(severity string) (string, error) {
+func getRuleIDFromTrivySeverity(severity string) (string, error) {
 	switch strings.ToLower(severity) {
 	case trivySeverityLow:
 		return ruleIDVulnerabilityMinor, nil

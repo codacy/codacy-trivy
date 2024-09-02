@@ -68,7 +68,7 @@ func trivyRules() Rules {
 		{
 			ID:          "vulnerability",
 			Title:       "Insecure dependencies detection (critical and high severity)",
-			Description: "Detects critical and high severity insecure dependencies by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
+			Description: "Detects insecure dependencies (critical and high severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
 			Level:       "Error",
 			Category:    "Security",
 			SubCategory: "InsecureModulesLibraries",
@@ -78,7 +78,7 @@ func trivyRules() Rules {
 		{
 			ID:          "vulnerability_medium",
 			Title:       "Insecure dependencies detection (medium severity)",
-			Description: "Detects medium severity insecure dependencies by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
+			Description: "Detects insecure dependencies (medium severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
 			Level:       "Warning",
 			Category:    "Security",
 			SubCategory: "InsecureModulesLibraries",
@@ -88,7 +88,7 @@ func trivyRules() Rules {
 		{
 			ID:          "vulnerability_minor",
 			Title:       "Insecure dependencies detection (minor severity)",
-			Description: "Detects minor severity insecure dependencies by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
+			Description: "Detects insecure dependencies (minor severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
 			Level:       "Info",
 			Category:    "Security",
 			SubCategory: "InsecureModulesLibraries",

@@ -406,26 +406,26 @@ func TestGetRuleIdFromTrivySeverity(t *testing.T) {
 	// Arrange
 	type testData struct {
 		trivySeverity  string
-		expectedRuleId string
+		expectedRuleID string
 		expectedErr    error
 	}
 
 	testSet := map[string]testData{
 		"low": {
 			trivySeverity:  "LoW",
-			expectedRuleId: ruleIDVulnerabilityMinor,
+			expectedRuleID: ruleIDVulnerabilityMinor,
 		},
 		"medium": {
 			trivySeverity:  "medium",
-			expectedRuleId: ruleIDVulnerabilityMedium,
+			expectedRuleID: ruleIDVulnerabilityMedium,
 		},
 		"high": {
 			trivySeverity:  "hiGh",
-			expectedRuleId: ruleIDVulnerability,
+			expectedRuleID: ruleIDVulnerability,
 		},
 		"critical": {
 			trivySeverity:  "CrItIcAl",
-			expectedRuleId: ruleIDVulnerability,
+			expectedRuleID: ruleIDVulnerability,
 		},
 		"unknown": {
 			trivySeverity: "unknown",
@@ -436,10 +436,10 @@ func TestGetRuleIdFromTrivySeverity(t *testing.T) {
 	for testName, testData := range testSet {
 		t.Run(testName, func(t *testing.T) {
 			// Act
-			ruleId, err := getRuleIdFromTrivySeverity(testData.trivySeverity)
+			ruleID, err := getRuleIDFromTrivySeverity(testData.trivySeverity)
 
 			// Assert
-			assert.Equal(t, testData.expectedRuleId, ruleId)
+			assert.Equal(t, testData.expectedRuleID, ruleID)
 			assert.Equal(t, testData.expectedErr, err)
 		})
 	}
@@ -562,13 +562,6 @@ func TestFindLeastDisruptiveFixedVerstion(t *testing.T) {
 			assert.Equal(t, testData.expectedFixedVersion, fixedVersion)
 		})
 	}
-
-	vulnerability := ptypes.DetectedVulnerability{
-		FixedVersion: "1.2.3, 3.2.1, 1.2.4",
-	}
-
-	//
-	findLeastDisruptiveFixedVersion(vulnerability)
 }
 
 func TestPkgId(t *testing.T) {
@@ -577,17 +570,17 @@ func TestPkgId(t *testing.T) {
 		id            string
 		name          string
 		version       string
-		expectedPkgId string
+		expectedPkgID string
 	}
 	testSet := map[string]testData{
 		"with ID": {
 			id:            "id",
-			expectedPkgId: "id",
+			expectedPkgID: "id",
 		},
 		"with name and version": {
 			name:          "name",
 			version:       "version",
-			expectedPkgId: "name@version",
+			expectedPkgID: "name@version",
 		},
 	}
 
@@ -597,7 +590,7 @@ func TestPkgId(t *testing.T) {
 			id := pkgID(testData.id, testData.name, testData.version)
 
 			// Assert
-			assert.Equal(t, testData.expectedPkgId, id)
+			assert.Equal(t, testData.expectedPkgID, id)
 		})
 	}
 }
