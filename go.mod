@@ -7,7 +7,7 @@ toolchain go1.22.4
 require (
 	github.com/aquasecurity/trivy v0.54.1 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20240718084044-d23a6ca8ba04
-	github.com/codacy/codacy-engine-golang-seed/v6 v6.2.1
+	github.com/codacy/codacy-engine-golang-seed/v6 v6.2.3
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.4.0
