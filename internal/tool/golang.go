@@ -11,9 +11,16 @@ import (
 )
 
 func patchGoModFilesForStdlib(srcDir string, files []string) string {
+	hasGoModFile := lo.SomeBy(files, func(f string) bool {
+		return strings.HasSuffix(f, "go.mod")
+	})
+	if !hasGoModFile {
+		return srcDir
+	}
+
 	// Copy the files to a temporary directory because /src is read-only
 	dstDir := "/tmp/src"
-	if err := CopyFiles(files, srcDir, dstDir); err != nil {
+	if err := copyFiles(files, srcDir, dstDir); err != nil {
 		return srcDir
 	}
 
@@ -87,8 +94,8 @@ func patchGoModFileForStdlib(filename string) {
 	}
 }
 
-// CopyFiles copies specific files from the source directory to the destination directory.
-func CopyFiles(files []string, srcDir string, dstDir string) error {
+// copyFiles copies specific files from the source directory to the destination directory.
+func copyFiles(files []string, srcDir string, dstDir string) error {
 	for _, file := range files {
 		srcPath := filepath.Join(srcDir, file)
 		dstPath := filepath.Join(dstDir, file)
@@ -99,15 +106,15 @@ func CopyFiles(files []string, srcDir string, dstDir string) error {
 		}
 
 		// Copy the file
-		if err := CopyFile(srcPath, dstPath); err != nil {
+		if err := copyFile(srcPath, dstPath); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// CopyFile copies a single file from src to dst.
-func CopyFile(src, dst string) error {
+// copyFile copies a single file from src to dst.
+func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
