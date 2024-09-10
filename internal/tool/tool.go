@@ -203,7 +203,7 @@ func (t codacyTrivy) runSecretScanning(toolExecution codacy.ToolExecution) []cod
 		return []codacy.Result{}
 	}
 
-	scanner := secret.NewScanner(&secret.Config{})
+	scanner := secret.NewScanner(nil)
 
 	results := []codacy.Result{}
 
