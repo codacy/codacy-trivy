@@ -35,7 +35,7 @@ func TestRun(t *testing.T) {
 	packageID2 := "package-2"
 
 	// Create a temporary file with a secret
-	srcDir, err := os.MkdirTemp("", "tool.TestRun")
+	srcDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		assert.FailNow(t, "Failed to create tmp directory", err.Error())
 	}
