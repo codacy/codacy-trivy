@@ -5,8 +5,8 @@ go 1.22.0
 toolchain go1.22.4
 
 require (
-	github.com/aquasecurity/trivy v0.55.0 // Also update .config.yml
-	github.com/aquasecurity/trivy-db v0.0.0-20240718084044-d23a6ca8ba04
+	github.com/aquasecurity/trivy v0.55.1 // Also update .config.yml
+	github.com/aquasecurity/trivy-db v0.0.0-20240910133327-7e0f4d2ed4c1
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.2.3
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
@@ -318,7 +318,7 @@ require (
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/zclconf/go-cty v1.15.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.0.3 // indirect
-	go.etcd.io/bbolt v1.3.10 // indirect
+	go.etcd.io/bbolt v1.3.11 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
@@ -339,7 +339,7 @@ require (
 	golang.org/x/term v0.23.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
-	golang.org/x/tools v0.23.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/api v0.172.0 // indirect
 	google.golang.org/genproto v0.0.0-20240311173647-c811ad7063a7 // indirect
