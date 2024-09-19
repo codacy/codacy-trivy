@@ -19,6 +19,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	"github.com/codacy/codacy-trivy/internal"
 	"github.com/samber/lo"
 	"golang.org/x/mod/semver"
 )
@@ -217,7 +218,7 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 
 // getSBOM produces a SBOM result from `report`.
 func (t codacyTrivy) getSBOM(ctx context.Context, report ptypes.Report) (codacy.SBOM, error) {
-	marshaler := cyclonedx.NewMarshaler("") // Trivy version
+	marshaler := cyclonedx.NewMarshaler(internal.TrivyVersion())
 	bom, err := marshaler.MarshalReport(ctx, report)
 	if err != nil {
 		return codacy.SBOM{}, &ToolError{msg: "Failed to run Codacy Trivy", w: err}

@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
-	"golang.org/x/mod/modfile"
+	"github.com/codacy/codacy-trivy/internal"
 )
 
 const toolName string = "trivy"
@@ -27,12 +26,7 @@ type documentationGenerator struct{}
 func (g documentationGenerator) Generate(destinationDir string) error {
 	trivyRules := trivyRules()
 
-	trivyVersion, err := trivyVersion()
-	if err != nil {
-		return err
-	}
-
-	if err := g.createPatternsFile(trivyRules, *trivyVersion, destinationDir); err != nil {
+	if err := g.createPatternsFile(trivyRules, internal.TrivyVersion(), destinationDir); err != nil {
 		return err
 	}
 
@@ -40,26 +34,6 @@ func (g documentationGenerator) Generate(destinationDir string) error {
 		return err
 	}
 	return nil
-}
-
-// trivyVersion returns the current version of the trivy library used.
-func trivyVersion() (*string, error) {
-	goModFilename := "go.mod"
-	dependency := "github.com/aquasecurity/trivy"
-
-	goMod, err := os.ReadFile(goModFilename)
-	if err != nil {
-		return nil, &DocGenError{msg: fmt.Sprintf("Failed to load %s file", goModFilename), w: err}
-	}
-
-	file, _ := modfile.Parse(goModFilename, goMod, nil)
-	for _, r := range file.Require {
-		if r.Mod.Path == dependency {
-			version := strings.TrimPrefix(r.Mod.Version, "v")
-			return &version, nil
-		}
-	}
-	return nil, &DocGenError{msg: fmt.Sprintf("%s dependency not found in %s file", dependency, goModFilename)}
 }
 
 func (g documentationGenerator) createPatternsFile(rules Rules, toolVersion, destinationDir string) error {

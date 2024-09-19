@@ -257,9 +257,10 @@ func TestRun(t *testing.T) {
 					Tools: &cyclonedx.ToolsChoice{
 						Components: &[]cyclonedx.Component{
 							{
-								Type:  "application",
-								Group: "aquasecurity",
-								Name:  "trivy",
+								Type:    "application",
+								Group:   "aquasecurity",
+								Name:    "trivy",
+								Version: "dev",
 							},
 						},
 					},
