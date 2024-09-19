@@ -5,9 +5,11 @@ go 1.22.0
 toolchain go1.22.4
 
 require (
+	github.com/CycloneDX/cyclonedx-go v0.9.1
 	github.com/aquasecurity/trivy v0.55.1 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20240910133327-7e0f4d2ed4c1
-	github.com/codacy/codacy-engine-golang-seed/v6 v6.2.3
+	github.com/codacy/codacy-engine-golang-seed/v6 v6.3.0
+	github.com/google/go-cmp v0.6.0
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.4.0
@@ -35,7 +37,6 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
-	github.com/CycloneDX/cyclonedx-go v0.9.0 // indirect
 	github.com/GoogleCloudPlatform/docker-credential-gcr v2.0.5+incompatible // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
 	github.com/Intevation/jsonpath v0.2.1 // indirect
@@ -159,7 +160,6 @@ require (
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/certificate-transparency-go v1.1.8 // indirect
 	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/go-containerregistry v0.20.2 // indirect
 	github.com/google/go-github/v62 v62.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect

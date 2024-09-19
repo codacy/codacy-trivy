@@ -8,12 +8,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	dbtypes "github.com/aquasecurity/trivy-db/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/commands/artifact"
+	fartifact "github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -93,6 +98,7 @@ func TestRun(t *testing.T) {
 	}
 
 	report := ptypes.Report{
+		ArtifactType: fartifact.TypeFilesystem,
 		Results: ptypes.Results{
 			{
 				Target: fileName,
@@ -188,35 +194,120 @@ func TestRun(t *testing.T) {
 
 	// Assert
 	if assert.NoError(t, err) {
-		expectedResults := []codacy.Result{
-			codacy.Issue{
+		expectedIssues := []codacy.Issue{
+			{
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency package-1 (vuln id: vuln title) (update to vuln fixed)",
 			},
-			codacy.Issue{
+			{
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency package-1 (vuln id no fixed version: vuln no fixed version) (no fix available)",
 			},
-			codacy.FileError{
-				File:    fileName,
-				Message: "Line numbers not supported",
-			},
-			codacy.Issue{
+			{
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDSecret,
 				Message:   "Possible hardcoded secret: AWS Access Key ID",
 			},
-			codacy.FileError{
+		}
+		issues := lo.Filter(results, func(result codacy.Result, _ int) bool {
+			switch result.(type) {
+			case codacy.Issue:
+				return true
+			default:
+				return false
+			}
+		})
+		assert.ElementsMatch(t, expectedIssues, issues)
+
+		expectedFileErrors := []codacy.FileError{
+			{
+				File:    fileName,
+				Message: "Line numbers not supported",
+			},
+			{
 				File:    nonExistentFileName,
 				Message: "Failed to read source file",
 			},
 		}
-		assert.ElementsMatch(t, expectedResults, results)
+		fileErrors := lo.Filter(results, func(result codacy.Result, _ int) bool {
+			switch result.(type) {
+			case codacy.FileError:
+				return true
+			default:
+				return false
+			}
+		})
+		assert.ElementsMatch(t, expectedFileErrors, fileErrors)
+
+		expectedSBOM := codacy.SBOM{
+			BOM: cyclonedx.BOM{
+				XMLNS:        "http://cyclonedx.org/schema/bom/1.6",
+				JSONSchema:   "http://cyclonedx.org/schema/bom-1.6.schema.json",
+				BOMFormat:    "CycloneDX",
+				SpecVersion:  cyclonedx.SpecVersion(7),
+				SerialNumber: "urn:uuid:181e846e-fede-46b6-8be7-206a0f393caa", // different every run
+				Version:      1,
+				Metadata: &cyclonedx.Metadata{
+					Timestamp: "2024-09-19T09:41:02.021Z", // different every run
+					Tools: &cyclonedx.ToolsChoice{
+						Components: &[]cyclonedx.Component{
+							{
+								Type:  "application",
+								Group: "aquasecurity",
+								Name:  "trivy",
+							},
+						},
+					},
+					Component: &cyclonedx.Component{
+						BOMRef: "b804b498-f626-41c5-a47f-45e1471acf33", // different every run
+						Type:   "application",
+						Properties: &[]cyclonedx.Property{
+							{
+								Name:  "aquasecurity:trivy:SchemaVersion",
+								Value: "0",
+							},
+						},
+					},
+				},
+				Components: &[]cyclonedx.Component{},
+				Dependencies: &[]cyclonedx.Dependency{
+					{
+						Ref:          "b804b498-f626-41c5-a47f-45e1471acf33",
+						Dependencies: &[]string{},
+					},
+				},
+				Vulnerabilities: &[]cyclonedx.Vulnerability{},
+			},
+		}
+		sboms := lo.Filter(results, func(result codacy.Result, _ int) bool {
+			switch result.(type) {
+			case codacy.SBOM:
+				return true
+			default:
+				return false
+			}
+		})
+		// Only one SBOM result is produced
+		assert.Len(t, sboms, 1)
+		assert.True(
+			t,
+			cmp.Equal(
+				expectedSBOM,
+				sboms[0],
+				cmp.Options{
+					// Ignore fields that change each run
+					cmpopts.IgnoreFields(codacy.SBOM{}, "SerialNumber"),
+					cmpopts.IgnoreFields(cyclonedx.Metadata{}, "Timestamp"),
+					cmpopts.IgnoreFields(cyclonedx.Component{}, "BOMRef"),
+					cmpopts.IgnoreFields(cyclonedx.Dependency{}, "Ref"),
+				},
+			),
+		)
 	}
 }
 
@@ -332,12 +423,12 @@ func TestRunScanFilesystemError(t *testing.T) {
 
 func TestRunVulnerabilityScanningNotEnabled(t *testing.T) {
 	toolExecution := codacy.ToolExecution{
-		Patterns: &[]codacy.Pattern{codacy.Pattern{ID: ruleIDSecret}},
+		Patterns: &[]codacy.Pattern{{ID: ruleIDSecret}},
 	}
 	underTest := codacyTrivy{}
 
 	// Act
-	results, err := underTest.runVulnerabilityScanning(context.Background(), toolExecution)
+	results, err := underTest.getVulnerabilities(context.Background(), ptypes.Report{}, toolExecution)
 
 	// Assert
 	assert.NoError(t, err)
@@ -346,7 +437,7 @@ func TestRunVulnerabilityScanningNotEnabled(t *testing.T) {
 
 func TestRunSecretScanningNotEnabled(t *testing.T) {
 	toolExecution := codacy.ToolExecution{
-		Patterns: &[]codacy.Pattern{codacy.Pattern{ID: ruleIDVulnerabilityMedium}},
+		Patterns: &[]codacy.Pattern{{ID: ruleIDVulnerabilityMedium}},
 	}
 	underTest := codacyTrivy{}
 
@@ -377,16 +468,6 @@ func TestValidateExecutionConfiguration(t *testing.T) {
 				},
 			},
 			errMsg: "Failed to configure Codacy Trivy: configured patterns don't match existing rules (provided [unknown])",
-		},
-		"no files": {
-			executionConfiguration: codacy.ToolExecution{
-				Patterns: &[]codacy.Pattern{
-					{
-						ID: ruleIDVulnerability,
-					},
-				},
-			},
-			errMsg: "Failed to configure Codacy Trivy: no files to analyse",
 		},
 	}
 
