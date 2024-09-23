@@ -16,8 +16,10 @@ import (
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
 	tresult "github.com/aquasecurity/trivy/pkg/result"
+	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	"github.com/codacy/codacy-trivy/internal"
 	"github.com/samber/lo"
 	"golang.org/x/mod/semver"
 )
@@ -63,7 +65,17 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 	// This is the only way to suppress Trivy logs.
 	log.InitLogger(false, true)
 
-	vulnerabilityScanningIssues, err := t.runVulnerabilityScanning(ctx, toolExecution)
+	report, err := t.runBaseScan(ctx, &toolExecution)
+	if err != nil {
+		return nil, err
+	}
+
+	sbom, err := t.getSBOM(ctx, report)
+	if err != nil {
+		return nil, err
+	}
+
+	vulnerabilityScanningIssues, err := t.getVulnerabilities(ctx, report, toolExecution)
 	if err != nil {
 		return nil, err
 	}
@@ -71,24 +83,14 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 	secretScanningIssues := t.runSecretScanning(toolExecution)
 
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
+	allIssues = append(allIssues, sbom)
 
 	return allIssues, nil
 }
 
-func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution codacy.ToolExecution) ([]codacy.Result, error) {
-	vulnerabilityScanningEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
-		return lo.Contains(ruleIDsVulnerability, p.ID)
-	})
-	if !vulnerabilityScanningEnabled {
-		return []codacy.Result{}, nil
-	}
-
-	trivySeverities := getTrivySeveritiesFromPatterns(*toolExecution.Patterns)
-	// This should never happen, given that we validate the patterns above. Still, it's a failsafe.
-	if len(trivySeverities) == 0 {
-		return nil, &ToolError{msg: fmt.Sprintf("Failed to run Codacy Trivy: vulnerability patterns did not produce severities (patterns %v)", *toolExecution.Patterns)}
-	}
-
+// runBaseScan will run a vulnerability scan that produces a report to be used for SBOM generation or for vulnerability issues.
+// This method can change the `sourceDir` property of `toolExecution`, when scanning go code. This will have no impact for other scans.
+func (t codacyTrivy) runBaseScan(ctx context.Context, toolExecution *codacy.ToolExecution) (ptypes.Report, error) {
 	// Workaround for detecting vulnerabilities in the Go standard library.
 	// Mimics the behavior of govulncheck by replacing the go version directive with a require statement for stdlib. https://go.dev/blog/govulncheck
 	// This is only supported by Trivy for Go binaries. https://github.com/aquasecurity/trivy/issues/4133
@@ -127,17 +129,38 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 
 	runner, err := t.runnerFactory.NewRunner(ctx, config)
 	if err != nil {
-		return nil, err
+		return ptypes.Report{}, err
 	}
 	defer runner.Close(ctx)
 
 	results, err := runner.ScanFilesystem(ctx, config)
 	if err != nil {
-		return nil, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
+		return ptypes.Report{}, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
+	}
+
+	return results, nil
+}
+
+// getVulnerabilties obtains the vulnerable dependency issues from `report` respecting the `toolExecution` configuration,
+// with regards to patterns enabled, files to scan and line numbers. See [mapIssuesWithoutLineNumber] and [filterIssuesFromKnownFiles].
+//
+// If no vulnerability patterns are configured, this method returns immediately with empty results.
+func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Report, toolExecution codacy.ToolExecution) ([]codacy.Result, error) {
+	vulnerabilityScanningEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
+		return lo.Contains(ruleIDsVulnerability, p.ID)
+	})
+	if !vulnerabilityScanningEnabled {
+		return []codacy.Result{}, nil
+	}
+
+	trivySeverities := getTrivySeveritiesFromPatterns(*toolExecution.Patterns)
+	// This should never happen, given that we validate the patterns above. Still, it's a failsafe.
+	if len(trivySeverities) == 0 {
+		return nil, &ToolError{msg: fmt.Sprintf("Failed to run Codacy Trivy: vulnerability patterns did not produce severities (patterns %v)", *toolExecution.Patterns)}
 	}
 
 	issues := []codacy.Issue{}
-	for _, result := range results.Results {
+	for _, result := range report.Results {
 		// Make a map for faster lookup
 		lineNumberByPackageId := map[string]int{}
 		for _, pkg := range result.Packages {
@@ -191,6 +214,17 @@ func (t codacyTrivy) runVulnerabilityScanning(ctx context.Context, toolExecution
 	}
 
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
+}
+
+// getSBOM produces a SBOM result from `report`.
+func (t codacyTrivy) getSBOM(ctx context.Context, report ptypes.Report) (codacy.SBOM, error) {
+	marshaler := cyclonedx.NewMarshaler(internal.TrivyVersion())
+	bom, err := marshaler.MarshalReport(ctx, report)
+	if err != nil {
+		return codacy.SBOM{}, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
+	}
+
+	return codacy.SBOM{BOM: *bom}, nil
 }
 
 // Running Trivy for secret scanning is not as efficient as running for vulnerability scanning.
@@ -254,11 +288,6 @@ func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
 			return p.ID
 		})
 		return &ToolError{msg: fmt.Sprintf("Failed to configure Codacy Trivy: configured patterns don't match existing rules (provided %v)", patternIDs)}
-	}
-
-	if toolExecution.Files == nil || len(*toolExecution.Files) == 0 {
-		// TODO Run for all files in the source dir?
-		return &ToolError{msg: "Failed to configure Codacy Trivy: no files to analyse"}
 	}
 
 	return nil

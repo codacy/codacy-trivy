@@ -1,5 +1,8 @@
 FROM golang:1.22-alpine as builder
 
+ARG TRIVY_VERSION=dev
+ENV TRIVY_VERSION=$TRIVY_VERSION
+
 WORKDIR /src
 
 COPY go.mod go.mod

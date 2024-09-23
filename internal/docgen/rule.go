@@ -2,7 +2,7 @@ package docgen
 
 import codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 
-// Rule represent a static code analysis rule that an execution of `codacy-trivy` can trigger.
+// Rule represents a static code analysis rule that an execution of `codacy-trivy` can trigger.
 type Rule struct {
 	ID          string
 	Title       string
