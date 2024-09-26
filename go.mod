@@ -6,7 +6,7 @@ toolchain go1.22.4
 
 require (
 	github.com/CycloneDX/cyclonedx-go v0.9.1
-	github.com/aquasecurity/trivy v0.55.1 // Also update .config.yml
+	github.com/aquasecurity/trivy v0.55.2 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20240910133327-7e0f4d2ed4c1
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.3.0
 	github.com/google/go-cmp v0.6.0
