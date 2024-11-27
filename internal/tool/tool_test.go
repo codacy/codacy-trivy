@@ -18,6 +18,7 @@ import (
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/package-url/packageurl-go"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -36,8 +37,8 @@ func TestRun(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	packageID1 := "package-1"
-	packageID2 := "package-2"
+	package1Purl := packageurl.NewPackageURL("type", "namespace", "package-1", "version", nil, "")
+	package2Purl := packageurl.NewPackageURL("type", "namespace", "package-2", "version", nil, "")
 
 	// Create a temporary file with a secret
 	srcDir, err := os.MkdirTemp("", "")
@@ -104,56 +105,68 @@ func TestRun(t *testing.T) {
 				Target: fileName,
 				Packages: ftypes.Packages{
 					{
-						ID: packageID1,
 						Locations: []ftypes.Location{
 							{
 								StartLine: 1,
 							},
 						},
+						Identifier: ftypes.PkgIdentifier{
+							PURL: package1Purl,
+						},
 					},
 					{
-						ID: packageID2,
+						Identifier: ftypes.PkgIdentifier{
+							PURL: package2Purl,
+						},
 					},
 				},
 				Vulnerabilities: []ptypes.DetectedVulnerability{
 					// Will generate an issue
 					{
-						PkgID:           packageID1,
 						VulnerabilityID: "vuln id",
 						Vulnerability: dbtypes.Vulnerability{
 							Severity: "CRITICAL",
 							Title:    "vuln title",
 						},
 						FixedVersion: "vuln fixed",
+						PkgIdentifier: ftypes.PkgIdentifier{
+							PURL: package1Purl,
+						},
 					},
 					// Will generate an issue
 					{
-						PkgID:           packageID1,
 						VulnerabilityID: "vuln id no fixed version",
 						Vulnerability: dbtypes.Vulnerability{
 							Severity: "HIGH",
 							Title:    "vuln no fixed version",
 						},
+						PkgIdentifier: ftypes.PkgIdentifier{
+							PURL: package1Purl,
+						},
 					},
 					// Will generate a file error
 					{
-						PkgID:           packageID2,
 						VulnerabilityID: "no line",
 						Vulnerability: dbtypes.Vulnerability{
 							Severity: "HIGH",
 							Title:    "no line",
 						},
 						FixedVersion: "no line",
+						PkgIdentifier: ftypes.PkgIdentifier{
+							PURL: package2Purl,
+						},
 					},
 					// Will be filtered out due to the severity
 					{
-						PkgID:           packageID1,
 						VulnerabilityID: "filtered out by severity",
 						Vulnerability: dbtypes.Vulnerability{
 							Severity: "LOW",
 							Title:    "filtered out by severity",
 						},
 						FixedVersion: "filtered out by severity",
+						PkgIdentifier: ftypes.PkgIdentifier{
+							PURL: package1Purl,
+						},
 					},
 				},
 			},
@@ -162,13 +175,15 @@ func TestRun(t *testing.T) {
 				Vulnerabilities: []ptypes.DetectedVulnerability{
 					// Will be filtered out because it belongs to a file that is not in the execution configuration
 					{
-						PkgID:           packageID1,
 						VulnerabilityID: "unconfigured file",
 						Vulnerability: dbtypes.Vulnerability{
 							Severity: "High",
 							Title:    "unconfigured file",
 						},
 						FixedVersion: "no line",
+						PkgIdentifier: ftypes.PkgIdentifier{
+							PURL: package1Purl,
+						},
 					},
 				},
 			},
@@ -199,13 +214,13 @@ func TestRun(t *testing.T) {
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
-				Message:   "Insecure dependency package-1 (vuln id: vuln title) (update to vuln fixed)",
+				Message:   "Insecure dependency type/namespace/package-1@version (vuln id: vuln title) (update to vuln fixed)",
 			},
 			{
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
-				Message:   "Insecure dependency package-1 (vuln id no fixed version: vuln no fixed version) (no fix available)",
+				Message:   "Insecure dependency type/namespace/package-1@version (vuln id no fixed version: vuln no fixed version) (no fix available)",
 			},
 			{
 				File:      fileName,
@@ -646,35 +661,15 @@ func TestFindLeastDisruptiveFixedVerstion(t *testing.T) {
 	}
 }
 
-func TestPkgId(t *testing.T) {
+func TestPurlPrettyPrint(t *testing.T) {
 	// Arrange
-	type testData struct {
-		id            string
-		name          string
-		version       string
-		expectedPkgID string
-	}
-	testSet := map[string]testData{
-		"with ID": {
-			id:            "id",
-			expectedPkgID: "id",
-		},
-		"with name and version": {
-			name:          "name",
-			version:       "version",
-			expectedPkgID: "name@version",
-		},
-	}
+	purl := packageurl.NewPackageURL("type", "namespace", "name", "1.2.0+incompatible", nil, "")
 
-	for testName, testData := range testSet {
-		t.Run(testName, func(t *testing.T) {
-			// Act
-			id := pkgID(testData.id, testData.name, testData.version)
+	// Act
+	ppp := purlPrettyPrint(*purl)
 
-			// Assert
-			assert.Equal(t, testData.expectedPkgID, id)
-		})
-	}
+	// Assert
+	assert.Equal(t, "type/namespace/name@1.2.0+incompatible", ppp)
 }
 
 type mockRunnerFactory struct {
