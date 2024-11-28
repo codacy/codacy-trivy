@@ -10,6 +10,7 @@ require (
 	github.com/aquasecurity/trivy-db v0.0.0-20240910133327-7e0f4d2ed4c1
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.3.0
 	github.com/google/go-cmp v0.6.0
+	github.com/package-url/packageurl-go v0.1.3
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.5.0
@@ -263,7 +264,6 @@ require (
 	github.com/openvex/go-vex v0.2.5 // indirect
 	github.com/owenrumney/go-sarif/v2 v2.3.3 // indirect
 	github.com/owenrumney/squealer v1.2.4 // indirect
-	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
