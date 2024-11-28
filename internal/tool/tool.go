@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/codacy/codacy-trivy/internal"
+	"github.com/package-url/packageurl-go"
 	"github.com/samber/lo"
 	"golang.org/x/mod/semver"
 )
@@ -162,13 +164,13 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 	issues := []codacy.Issue{}
 	for _, result := range report.Results {
 		// Make a map for faster lookup
-		lineNumberByPackageId := map[string]int{}
+		lineNumberByPurl := map[string]int{}
 		for _, pkg := range result.Packages {
 			lineNumber := 0
 			if len(pkg.Locations) > 0 {
 				lineNumber = pkg.Locations[0].StartLine
 			}
-			lineNumberByPackageId[pkgID(pkg.ID, pkg.Name, pkg.Version)] = lineNumber
+			lineNumberByPurl[pkg.Identifier.PURL.ToString()] = lineNumber
 		}
 
 		// Ensure Trivy only produces results with severities matching the specified patterns.
@@ -178,11 +180,10 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 		}
 
 		for _, vuln := range result.Vulnerabilities {
-			ID := pkgID(vuln.PkgID, vuln.PkgName, vuln.InstalledVersion)
-
+			purl := vuln.PkgIdentifier.PURL.ToString()
 			// If the line number is not available, use the fallback.
-			if value, ok := lineNumberByPackageId[ID]; !ok || value == 0 {
-				lineNumberByPackageId[ID] = fallbackSearchForLineNumber(toolExecution.SourceDir, result.Target, vuln.PkgName)
+			if value, ok := lineNumberByPurl[purl]; !ok || value == 0 {
+				lineNumberByPurl[purl] = fallbackSearchForLineNumber(toolExecution.SourceDir, result.Target, vuln.PkgName)
 			}
 
 			// Find the smallest version increment that fixes a vulnerabillity
@@ -204,8 +205,8 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 				issues,
 				codacy.Issue{
 					File:      result.Target,
-					Line:      lineNumberByPackageId[ID],
-					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", ID, vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
+					Line:      lineNumberByPurl[purl],
+					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
 					PatternID: ruleID,
 				},
 			)
@@ -399,9 +400,11 @@ func findLeastDisruptiveFixedVersion(vuln ptypes.DetectedVulnerability) string {
 	return vuln.FixedVersion
 }
 
-func pkgID(id, name, version string) string {
-	if id != "" {
-		return id
+// Remove the pkg: prefix and url-decode the PURL for display purposes.
+func purlPrettyPrint(purl packageurl.PackageURL) string {
+	purlStripPkg := strings.TrimPrefix(purl.ToString(), "pkg:")
+	if ppp, err := url.PathUnescape(purlStripPkg); err == nil {
+		return ppp
 	}
-	return fmt.Sprintf("%s@%s", name, version)
+	return purlStripPkg
 }

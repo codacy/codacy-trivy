@@ -18,26 +18,26 @@
         <error
             source="vulnerability_medium"
             line="1"
-            message="Insecure dependency org.apache.logging.log4j:log4j-core:2.17.0 (CVE-2021-44832: log4j-core: remote code execution via JDBC Appender) (update to 2.17.1)"
+            message="Insecure dependency maven/org.apache.logging.log4j/log4j-core@2.17.0 (CVE-2021-44832: log4j-core: remote code execution via JDBC Appender) (update to 2.17.1)"
             severity="warning"
         />
         <error
             source="vulnerability"
             line="2"
-            message="Insecure dependency org.apache.dolphinscheduler:dolphinscheduler-task-api:3.2.1 (CVE-2024-43202: Apache Dolphinscheduler Code Injection vulnerability) (update to 3.2.2)"
+            message="Insecure dependency maven/org.apache.dolphinscheduler/dolphinscheduler-task-api@3.2.1 (CVE-2024-43202: Apache Dolphinscheduler Code Injection vulnerability) (update to 3.2.2)"
             severity="error"
         />
         <error
             source="vulnerability"
             line="3"
-            message="Insecure dependency org.apache.seatunnel:seatunnel:1.0.0 (CVE-2023-49198: Apache SeaTunnel SQL Injection vulnerability) (update to 1.0.1)"
+            message="Insecure dependency maven/org.apache.seatunnel/seatunnel@1.0.0 (CVE-2023-49198: Apache SeaTunnel SQL Injection vulnerability) (update to 1.0.1)"
             severity="error"
         />
         <error
-            source="vulnerability_minor"
+            source="vulnerability_medium"
             line="4"
-            message="Insecure dependency org.apache.cxf:cxf-rt-transports-http:4.0.0 (CVE-2024-41172: apache: cxf: org.apache.cxf:cxf-rt-transports-http: unrestricted memory consumption in CXF HTTP clients) (update to 4.0.5)"
-            severity="info"
+            message="Insecure dependency maven/org.apache.cxf/cxf-rt-transports-http@4.0.0 (CVE-2024-41172: apache: cxf: org.apache.cxf:cxf-rt-transports-http: unrestricted memory consumption in CXF HTTP clients) (update to 4.0.5)"
+            severity="warning"
         />
     </file>
 </checkstyle>
