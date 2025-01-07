@@ -9,14 +9,14 @@ references:
     persist_to_workspace: true
     # https://aquasecurity.github.io/trivy/v0.55/getting-started/installation/#install-script
     cmd: |
-      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.57.0
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.58.1
       mkdir cache
       ./trivy --cache-dir ./cache image --download-db-only
 
   build_and_publish_docker: &build_and_publish_docker
     persist_to_workspace: true
     cmd: |
-      docker build -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.57.0 .
+      docker build -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.58.1 .
       docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
 
 workflows:
