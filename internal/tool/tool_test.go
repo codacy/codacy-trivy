@@ -6,6 +6,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/CycloneDX/cyclonedx-go"
@@ -367,14 +369,28 @@ func TestRun(t *testing.T) {
 
 		// Set values that change on every run to known values.
 		// This allows us to test the relationship between components.
+		oldMetadataComponentBOMRef := sboms[0].(codacy.SBOM).Metadata.Component.BOMRef
 		sboms[0].(codacy.SBOM).Metadata.Component.BOMRef = expectedMetadataComponentBOMRef
+		// Components are always in declaration order, with the root component (created automatically) coming first
 		cs := *sboms[0].(codacy.SBOM).Components
+		oldRootComponentBOMRef := cs[0].BOMRef
 		cs[0].BOMRef = expectedRootComponentBOMRef
 		cs[0].Name = expectedRooComponentName
+		// Dependencies are not always in order we must take care to change the correct value
 		ds := *sboms[0].(codacy.SBOM).Dependencies
-		ds[0].Ref = expectedMetadataComponentBOMRef
-		ds[0].Dependencies = &[]string{expectedRootComponentBOMRef}
-		ds[1].Ref = expectedRootComponentBOMRef
+		for i, d := range ds {
+			if d.Ref == oldMetadataComponentBOMRef {
+				ds[i].Ref = expectedMetadataComponentBOMRef
+				ds[i].Dependencies = &[]string{expectedRootComponentBOMRef}
+			}
+			if d.Ref == oldRootComponentBOMRef {
+				ds[i].Ref = expectedRootComponentBOMRef
+			}
+		}
+		// Ensure dependencies array is as we expect it, otherwise comparison fails
+		slices.SortFunc(ds, func(a cyclonedx.Dependency, b cyclonedx.Dependency) int {
+			return strings.Compare(a.Ref, b.Ref)
+		})
 
 		// Only one SBOM result is produced
 		assert.Len(t, sboms, 1)
