@@ -402,7 +402,8 @@ func findLeastDisruptiveFixedVersion(vuln ptypes.DetectedVulnerability) string {
 	return vuln.FixedVersion
 }
 
-// unencodeComponentes uses URL unencoding on component PURLs and BOMRefs to helps downstream consumers of the SBOM file.
+// unencodeComponents decodes URL-encoded fields (`PackageURL`, `BOMRef`) in components and dependencies
+// to help downstream consumers of the SBOM file.
 //
 // This function mutates the provided BOM.
 func unencodeComponents(bom *cdx.BOM) {

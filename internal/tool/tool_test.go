@@ -365,7 +365,7 @@ func TestRun(t *testing.T) {
 			}
 		})
 
-		// Set values that change on every run to known values.``
+		// Set values that change on every run to known values.
 		// This allows us to test the relationship between components.
 		sboms[0].(codacy.SBOM).Metadata.Component.BOMRef = expectedMetadataComponentBOMRef
 		cs := *sboms[0].(codacy.SBOM).Components
