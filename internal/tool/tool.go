@@ -11,13 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	cdx "github.com/CycloneDX/cyclonedx-go"
 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
 	tresult "github.com/aquasecurity/trivy/pkg/result"
-	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
+	tcdx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"github.com/codacy/codacy-trivy/internal"
@@ -219,12 +220,13 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 
 // getSBOM produces a SBOM result from `report`.
 func (t codacyTrivy) getSBOM(ctx context.Context, report ptypes.Report) (codacy.SBOM, error) {
-	marshaler := cyclonedx.NewMarshaler(internal.TrivyVersion())
+	marshaler := tcdx.NewMarshaler(internal.TrivyVersion())
 	bom, err := marshaler.MarshalReport(ctx, report)
 	if err != nil {
 		return codacy.SBOM{}, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
 	}
 
+	unencodeComponents(bom)
 	return codacy.SBOM{BOM: *bom}, nil
 }
 
@@ -398,6 +400,36 @@ func findLeastDisruptiveFixedVersion(vuln ptypes.DetectedVulnerability) string {
 		return possibleUpdates[0]
 	}
 	return vuln.FixedVersion
+}
+
+// unencodeComponents decodes URL-encoded fields (`PackageURL`, `BOMRef`) in components and dependencies
+// to help downstream consumers of the SBOM file.
+//
+// This function mutates the provided BOM.
+func unencodeComponents(bom *cdx.BOM) {
+	components := *bom.Components
+	for i, component := range components {
+		if purl, err := url.PathUnescape(component.PackageURL); err == nil {
+			components[i].PackageURL = purl
+		}
+		if bomRef, err := url.PathUnescape(component.BOMRef); err == nil {
+			components[i].BOMRef = bomRef
+		}
+	}
+
+	dependencies := *bom.Dependencies
+	for i, dependency := range dependencies {
+		if ref, err := url.PathUnescape(dependency.Ref); err == nil {
+			dependencies[i].Ref = ref
+		}
+
+		dDependencies := *dependency.Dependencies
+		for j, dDependency := range dDependencies {
+			if d, err := url.PathUnescape(dDependency); err == nil {
+				dDependencies[j] = d
+			}
+		}
+	}
 }
 
 // Remove the pkg: prefix and url-decode the PURL for display purposes.

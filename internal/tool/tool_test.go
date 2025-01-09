@@ -6,6 +6,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/CycloneDX/cyclonedx-go"
@@ -37,8 +39,8 @@ func TestRun(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
-	package1Purl := packageurl.NewPackageURL("type", "namespace", "package-1", "version", nil, "")
-	package2Purl := packageurl.NewPackageURL("type", "namespace", "package-2", "version", nil, "")
+	package1Purl := packageurl.NewPackageURL("type", "@namespace", "package-1", "version+incompatible", nil, "")
+	package2Purl := packageurl.NewPackageURL("type", "@namespace", "package-2", "version+RC", nil, "")
 
 	// Create a temporary file with a secret
 	srcDir, err := os.MkdirTemp("", "")
@@ -111,15 +113,22 @@ func TestRun(t *testing.T) {
 							},
 						},
 						Identifier: ftypes.PkgIdentifier{
-							PURL: package1Purl,
+							BOMRef: package1Purl.String(),
+							PURL:   package1Purl,
+							UID:    package1Purl.String(),
 						},
+						Relationship: ftypes.RelationshipDirect,
 					},
 					{
 						Identifier: ftypes.PkgIdentifier{
-							PURL: package2Purl,
+							BOMRef: package2Purl.String(),
+							PURL:   package2Purl,
+							UID:    package2Purl.String(),
 						},
+						Relationship: ftypes.RelationshipDirect,
 					},
 				},
+				Class: ptypes.ClassLangPkg,
 				Vulnerabilities: []ptypes.DetectedVulnerability{
 					// Will generate an issue
 					{
@@ -214,13 +223,13 @@ func TestRun(t *testing.T) {
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
-				Message:   "Insecure dependency type/namespace/package-1@version (vuln id: vuln title) (update to vuln fixed)",
+				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id: vuln title) (update to vuln fixed)",
 			},
 			{
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
-				Message:   "Insecure dependency type/namespace/package-1@version (vuln id no fixed version: vuln no fixed version) (no fix available)",
+				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id no fixed version: vuln no fixed version) (no fix available)",
 			},
 			{
 				File:      fileName,
@@ -259,6 +268,9 @@ func TestRun(t *testing.T) {
 		})
 		assert.ElementsMatch(t, expectedFileErrors, fileErrors)
 
+		expectedMetadataComponentBOMRef := "b804b498-f626-41c5-a47f-45e1471acf33"
+		expectedRootComponentBOMRef := "d16d6083-4370-442f-a6ab-c5146a215dbe"
+		expectedRooComponentName := "file-802713450"
 		expectedSBOM := codacy.SBOM{
 			BOM: cyclonedx.BOM{
 				XMLNS:        "http://cyclonedx.org/schema/bom/1.6",
@@ -280,7 +292,7 @@ func TestRun(t *testing.T) {
 						},
 					},
 					Component: &cyclonedx.Component{
-						BOMRef: "b804b498-f626-41c5-a47f-45e1471acf33", // different every run
+						BOMRef: expectedMetadataComponentBOMRef,
 						Type:   "application",
 						Properties: &[]cyclonedx.Property{
 							{
@@ -290,10 +302,56 @@ func TestRun(t *testing.T) {
 						},
 					},
 				},
-				Components: &[]cyclonedx.Component{},
+				Components: &[]cyclonedx.Component{
+					{
+						BOMRef: expectedRootComponentBOMRef,
+						Type:   "application",
+						Name:   "file-802713450",
+						Properties: &[]cyclonedx.Property{
+							{
+								Name:  "aquasecurity:trivy:Class",
+								Value: "lang-pkgs",
+							},
+							{
+								Name: "aquasecurity:trivy:Type",
+							},
+						},
+					},
+					{
+						BOMRef:     "pkg:type/@namespace/package-1@version+incompatible",
+						Type:       "library",
+						Properties: &[]cyclonedx.Property{},
+						PackageURL: "pkg:type/@namespace/package-1@version+incompatible",
+						Version:    "version+incompatible",
+					},
+					{
+						BOMRef:     "pkg:type/@namespace/package-2@version+RC",
+						Type:       "library",
+						Properties: &[]cyclonedx.Property{},
+						PackageURL: "pkg:type/@namespace/package-2@version+RC",
+						Version:    "version+RC",
+					},
+				},
 				Dependencies: &[]cyclonedx.Dependency{
 					{
-						Ref:          "b804b498-f626-41c5-a47f-45e1471acf33",
+						Ref: expectedMetadataComponentBOMRef,
+						Dependencies: &[]string{
+							expectedRootComponentBOMRef,
+						},
+					},
+					{
+						Ref: expectedRootComponentBOMRef,
+						Dependencies: &[]string{
+							"pkg:type/@namespace/package-1@version+incompatible",
+							"pkg:type/@namespace/package-2@version+RC",
+						},
+					},
+					{
+						Ref:          "pkg:type/@namespace/package-1@version+incompatible",
+						Dependencies: &[]string{},
+					},
+					{
+						Ref:          "pkg:type/@namespace/package-2@version+RC",
 						Dependencies: &[]string{},
 					},
 				},
@@ -308,6 +366,32 @@ func TestRun(t *testing.T) {
 				return false
 			}
 		})
+
+		// Set values that change on every run to known values.
+		// This allows us to test the relationship between components.
+		oldMetadataComponentBOMRef := sboms[0].(codacy.SBOM).Metadata.Component.BOMRef
+		sboms[0].(codacy.SBOM).Metadata.Component.BOMRef = expectedMetadataComponentBOMRef
+		// Components are always in declaration order, with the root component (created automatically) coming first
+		cs := *sboms[0].(codacy.SBOM).Components
+		oldRootComponentBOMRef := cs[0].BOMRef
+		cs[0].BOMRef = expectedRootComponentBOMRef
+		cs[0].Name = expectedRooComponentName
+		// Dependencies are not always in order we must take care to change the correct value
+		ds := *sboms[0].(codacy.SBOM).Dependencies
+		for i, d := range ds {
+			if d.Ref == oldMetadataComponentBOMRef {
+				ds[i].Ref = expectedMetadataComponentBOMRef
+				ds[i].Dependencies = &[]string{expectedRootComponentBOMRef}
+			}
+			if d.Ref == oldRootComponentBOMRef {
+				ds[i].Ref = expectedRootComponentBOMRef
+			}
+		}
+		// Ensure dependencies array is as we expect it, otherwise comparison fails
+		slices.SortFunc(ds, func(a cyclonedx.Dependency, b cyclonedx.Dependency) int {
+			return strings.Compare(a.Ref, b.Ref)
+		})
+
 		// Only one SBOM result is produced
 		assert.Len(t, sboms, 1)
 		assert.True(
@@ -319,8 +403,6 @@ func TestRun(t *testing.T) {
 					// Ignore fields that change each run
 					cmpopts.IgnoreFields(codacy.SBOM{}, "SerialNumber"),
 					cmpopts.IgnoreFields(cyclonedx.Metadata{}, "Timestamp"),
-					cmpopts.IgnoreFields(cyclonedx.Component{}, "BOMRef"),
-					cmpopts.IgnoreFields(cyclonedx.Dependency{}, "Ref"),
 				},
 			),
 		)
