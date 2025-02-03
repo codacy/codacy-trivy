@@ -11,7 +11,7 @@ require (
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.3.0
 	github.com/google/go-cmp v0.6.0
 	github.com/package-url/packageurl-go v0.1.3
-	github.com/samber/lo v1.49.0
+	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.0
 	golang.org/x/mod v0.22.0
