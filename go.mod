@@ -13,7 +13,7 @@ require (
 	github.com/package-url/packageurl-go v0.1.3
 	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
-	go.uber.org/mock v0.5.0
+	go.uber.org/mock v0.5.2
 	golang.org/x/mod v0.24.0
 )
 
