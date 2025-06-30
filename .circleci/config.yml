@@ -62,8 +62,8 @@ workflows:
   update_vulnerability_dbs:
     triggers:
       - schedule:
-          # this is running at 2am everyday to avoid doing it at midnight (same time as nightly)
-          cron: "0 2 * * *"
+          # run at 00:30 UTC (30 minutes after being updated on the source)
+          cron: "30 0 * * *"
           filters:
             branches:
               only:
