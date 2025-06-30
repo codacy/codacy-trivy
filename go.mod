@@ -11,10 +11,10 @@ require (
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/package-url/packageurl-go v0.1.3
-	github.com/samber/lo v1.50.0
+	github.com/samber/lo v1.51.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.2
-	golang.org/x/mod v0.24.0
+	golang.org/x/mod v0.25.0
 )
 
 require (
@@ -167,7 +167,7 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gocsaf/csaf/v3 v3.1.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
