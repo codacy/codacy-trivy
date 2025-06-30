@@ -14,7 +14,7 @@ require (
 	github.com/samber/lo v1.51.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.2
-	golang.org/x/mod v0.24.0
+	golang.org/x/mod v0.25.0
 )
 
 require (
