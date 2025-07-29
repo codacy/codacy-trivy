@@ -934,8 +934,8 @@ github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3 h1:boJj011Hh+874zpIySe
 github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3/go.mod h1:W+zGtBO5Y1IgJhy4+A9GOqVhqLpfZi+vwmdNXUehLA8=
 github.com/cockroachdb/apd/v3 v3.2.1 h1:U+8j7t0axsIgvQUqthuNm82HIrYXodOV2iWLWtEaIwg=
 github.com/cockroachdb/apd/v3 v3.2.1/go.mod h1:klXJcjp+FffLTHlhIG69tezTDvdP065naDsHzKhYSqc=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.3.0 h1:kGwieci9KOXZcmfKLnUHND3aY9RiEJoS8/zMokVwnvw=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.3.0/go.mod h1:Ir7lvmQQeEd7xF7Z+XNaY+UGq6CBXil2rEmKhNDkVRk=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.4.0 h1:IEBZi96MMt7hXCovJFTI8GU7hFz5wnzVwVZZv9j69Ec=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.4.0/go.mod h1:Ir7lvmQQeEd7xF7Z+XNaY+UGq6CBXil2rEmKhNDkVRk=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUoc7Ik9EfrFqcylYqgPZ9ANSbTAntnE=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb/go.mod h1:ZjrT6AXHbDs86ZSdt/osfBi5qfexBrKUdONk989Wnk4=
 github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be h1:J5BL2kskAlV9ckgEsNQXscjIaLiOYiZ75d4e94E6dcQ=

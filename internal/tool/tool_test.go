@@ -224,18 +224,21 @@ func TestRun(t *testing.T) {
 				Line:      1,
 				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id: vuln title) (update to vuln fixed)",
+				SourceID:  "vuln id",
 			},
 			{
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id no fixed version: vuln no fixed version) (no fix available)",
+				SourceID:  "vuln id no fixed version",
 			},
 			{
 				File:      fileName,
 				Line:      1,
 				PatternID: ruleIDSecret,
 				Message:   "Possible hardcoded secret: AWS Access Key ID",
+				SourceID:  "aws-access-key-id",
 			},
 		}
 		issues := lo.Filter(results, func(result codacy.Result, _ int) bool {
