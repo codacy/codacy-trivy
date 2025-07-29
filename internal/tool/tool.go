@@ -209,6 +209,7 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 					Line:      lineNumberByPurl[purl],
 					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
 					PatternID: ruleID,
+					SourceID:  vuln.VulnerabilityID,
 				},
 			)
 		}
@@ -270,6 +271,7 @@ func (t codacyTrivy) runSecretScanning(toolExecution codacy.ToolExecution) []cod
 					Message:   fmt.Sprintf("Possible hardcoded secret: %s", result.Title),
 					PatternID: ruleIDSecret,
 					Line:      result.StartLine,
+					SourceID:  result.RuleID,
 				},
 			)
 		}
