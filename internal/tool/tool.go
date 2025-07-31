@@ -68,7 +68,7 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 	// This is the only way to suppress Trivy logs.
 	log.InitLogger(false, true)
 
-	report, err := t.runBaseScan(ctx, &toolExecution)
+	report, err := t.runBaseScan(ctx, toolExecution.SourceDir)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +92,7 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 }
 
 // runBaseScan will run a vulnerability scan that produces a report to be used for SBOM generation or for vulnerability issues.
-// This method can change the `sourceDir` property of `toolExecution`, when scanning go code. This will have no impact for other scans.
-func (t codacyTrivy) runBaseScan(ctx context.Context, toolExecution *codacy.ToolExecution) (ptypes.Report, error) {
+func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string) (ptypes.Report, error) {
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
 			// CacheDir needs to be explicitly set and match the directory in the Dockerfile.
@@ -121,7 +120,7 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, toolExecution *codacy.Tool
 			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
 			// Instead of scanning files individually, scan the whole source directory since it's faster.
 			// Then filter issues from files that were not supposed to be analysed.
-			Target: toolExecution.SourceDir,
+			Target: sourceDir,
 			// Detects more vulnerabilities, potentially including some that might be false positives.
 			// This is REQUIRED for detecting vulnerabilites in go standard library.
 			DetectionPriority: ftypes.PriorityComprehensive,
@@ -377,6 +376,7 @@ func fallbackSearchForLineNumber(sourceDir, fileName, pkgName string) int {
 
 	line := 1
 	goDirectiveLine := 0
+	isGoModStdLib := strings.HasSuffix(fileName, "go.mod") && pkgName == "stdlib"
 	for scanner.Scan() {
 		lineText := strings.TrimSpace(scanner.Text())
 
@@ -385,7 +385,7 @@ func fallbackSearchForLineNumber(sourceDir, fileName, pkgName string) int {
 		// Trivy uses `stdlib` to refer to the standard library defined in `toolchain` or `go` directives in go.mod.
 		// Trivy supposedly uses the minimum version between `toolchain` and `go` directives (see https://trivy.dev/v0.59/docs/coverage/language/golang/#gomod-stdlib)
 		// but in reality it ALWAYS uses the version defined in `toolchain` when it exists.
-		if fileName == "go.mod" && pkgName == "stdlib" {
+		if isGoModStdLib {
 			// If there is a `toolchain` directive use its line.
 			if strings.HasPrefix(lineText, "toolchain ") {
 				return line
