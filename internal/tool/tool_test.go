@@ -4,6 +4,7 @@ package tool
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -94,9 +95,10 @@ func TestRun(t *testing.T) {
 			ListAllPkgs: true,
 		},
 		ScanOptions: flag.ScanOptions{
-			OfflineScan: true,
-			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
-			Target:      srcDir,
+			OfflineScan:       true,
+			Scanners:          ptypes.Scanners{ptypes.VulnerabilityScanner},
+			Target:            srcDir,
+			DetectionPriority: ftypes.PriorityComprehensive,
 		},
 	}
 
@@ -491,9 +493,10 @@ func TestRunScanFilesystemError(t *testing.T) {
 			ListAllPkgs: true,
 		},
 		ScanOptions: flag.ScanOptions{
-			OfflineScan: true,
-			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
-			Target:      sourceDir,
+			OfflineScan:       true,
+			Scanners:          ptypes.Scanners{ptypes.VulnerabilityScanner},
+			Target:            sourceDir,
+			DetectionPriority: ftypes.PriorityComprehensive,
 		},
 	}
 
@@ -696,7 +699,65 @@ func TestFallbackSearchForLineNumber(t *testing.T) {
 	}
 }
 
-func TestFallbackSearchForLineNumber_NonExistenFile(t *testing.T) {
+func TestFallbackSearchForLineNumber_GoModStdlib(t *testing.T) {
+	type testData struct {
+		fileContents       string
+		expectedLineNumber int
+	}
+	testSet := map[string]testData{
+		"only toolchain directive": {
+			fileContents:       "module abc\n\n\n toolchain go1.2.3",
+			expectedLineNumber: 4,
+		},
+		"only go directive": {
+			fileContents:       "module abc\n\n\n\n go 1.2.3",
+			expectedLineNumber: 5,
+		},
+		"toolchain and go directives": {
+			fileContents:       "module abc\n toolchain go1.21.4\ngo 1.2.3",
+			expectedLineNumber: 2,
+		},
+		"go and toolchain directives": {
+			fileContents:       "module abc\n go 1.21.4\ntoolchain go1.2.3",
+			expectedLineNumber: 3,
+		},
+		"no directives": {
+			fileContents:       "module abc",
+			expectedLineNumber: 0,
+		},
+	}
+
+	// Arrange
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			srcDir, err := os.MkdirTemp("", "tool.TestFallbackSearchForLineNumber_GoModStdlib")
+			if err != nil {
+				assert.FailNow(t, "Failed to create tmp directory", err.Error())
+			}
+			defer os.RemoveAll(srcDir)
+
+			f, err := os.Create(fmt.Sprintf("%s/go.mod", srcDir))
+			if err != nil {
+				assert.FailNow(t, "Failed to create tmp file", err.Error())
+			}
+			defer f.Close()
+
+			if _, err := f.Write([]byte(testData.fileContents)); err != nil {
+				assert.FailNow(t, "Failed to write to tmp file", err.Error())
+			}
+
+			fileName := filepath.Base(f.Name())
+
+			// Act
+			lineNumber := fallbackSearchForLineNumber(srcDir, fileName, "stdlib")
+
+			// Assert
+			assert.Equal(t, testData.expectedLineNumber, lineNumber)
+		})
+	}
+}
+
+func TestFallbackSearchForLineNumber_NonExistentFile(t *testing.T) {
 	// Act
 	lineNumber := fallbackSearchForLineNumber(".", "non-existent", "not used")
 

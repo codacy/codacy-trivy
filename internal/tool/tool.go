@@ -33,7 +33,7 @@ const (
 	ruleIDVulnerabilityMedium string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor  string = "vulnerability_minor"
 
-	// See https://aquasecurity.github.io/trivy/v0.54/docs/scanner/vulnerability/#severity-selection
+	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
 	trivySeverityMedium   string = "medium"
 	trivySeverityHigh     string = "high"
@@ -94,11 +94,6 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 // runBaseScan will run a vulnerability scan that produces a report to be used for SBOM generation or for vulnerability issues.
 // This method can change the `sourceDir` property of `toolExecution`, when scanning go code. This will have no impact for other scans.
 func (t codacyTrivy) runBaseScan(ctx context.Context, toolExecution *codacy.ToolExecution) (ptypes.Report, error) {
-	// Workaround for detecting vulnerabilities in the Go standard library.
-	// Mimics the behavior of govulncheck by replacing the go version directive with a require statement for stdlib. https://go.dev/blog/govulncheck
-	// This is only supported by Trivy for Go binaries. https://github.com/aquasecurity/trivy/issues/4133
-	toolExecution.SourceDir = patchGoModFilesForStdlib(toolExecution.SourceDir, *toolExecution.Files)
-
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
 			// CacheDir needs to be explicitly set and match the directory in the Dockerfile.
@@ -127,6 +122,9 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, toolExecution *codacy.Tool
 			// Instead of scanning files individually, scan the whole source directory since it's faster.
 			// Then filter issues from files that were not supposed to be analysed.
 			Target: toolExecution.SourceDir,
+			// Detects more vulnerabilities, potentially including some that might be false positives.
+			// This is REQUIRED for detecting vulnerabilites in go standard library.
+			DetectionPriority: ftypes.PriorityComprehensive,
 		},
 	}
 
