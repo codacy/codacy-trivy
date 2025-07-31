@@ -33,7 +33,7 @@ const (
 	ruleIDVulnerabilityMedium string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor  string = "vulnerability_minor"
 
-	// See https://aquasecurity.github.io/trivy/v0.54/docs/scanner/vulnerability/#severity-selection
+	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
 	trivySeverityMedium   string = "medium"
 	trivySeverityHigh     string = "high"
@@ -68,7 +68,7 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 	// This is the only way to suppress Trivy logs.
 	log.InitLogger(false, true)
 
-	report, err := t.runBaseScan(ctx, &toolExecution)
+	report, err := t.runBaseScan(ctx, toolExecution.SourceDir)
 	if err != nil {
 		return nil, err
 	}
@@ -92,13 +92,7 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 }
 
 // runBaseScan will run a vulnerability scan that produces a report to be used for SBOM generation or for vulnerability issues.
-// This method can change the `sourceDir` property of `toolExecution`, when scanning go code. This will have no impact for other scans.
-func (t codacyTrivy) runBaseScan(ctx context.Context, toolExecution *codacy.ToolExecution) (ptypes.Report, error) {
-	// Workaround for detecting vulnerabilities in the Go standard library.
-	// Mimics the behavior of govulncheck by replacing the go version directive with a require statement for stdlib. https://go.dev/blog/govulncheck
-	// This is only supported by Trivy for Go binaries. https://github.com/aquasecurity/trivy/issues/4133
-	toolExecution.SourceDir = patchGoModFilesForStdlib(toolExecution.SourceDir, *toolExecution.Files)
-
+func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string) (ptypes.Report, error) {
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
 			// CacheDir needs to be explicitly set and match the directory in the Dockerfile.
@@ -126,7 +120,10 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, toolExecution *codacy.Tool
 			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
 			// Instead of scanning files individually, scan the whole source directory since it's faster.
 			// Then filter issues from files that were not supposed to be analysed.
-			Target: toolExecution.SourceDir,
+			Target: sourceDir,
+			// Detects more vulnerabilities, potentially including some that might be false positives.
+			// This is REQUIRED for detecting vulnerabilites in go standard library.
+			DetectionPriority: ftypes.PriorityComprehensive,
 		},
 	}
 
@@ -378,23 +375,48 @@ func fallbackSearchForLineNumber(sourceDir, fileName, pkgName string) int {
 	scanner := bufio.NewScanner(f)
 
 	line := 1
+	goDirectiveLine := 0
+	isGoModStdLib := strings.HasSuffix(fileName, "go.mod") && pkgName == "stdlib"
 	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), pkgName) {
+		lineText := strings.TrimSpace(scanner.Text())
+
+		// Issues in go standard library are reported in package `stdlib` which does not literally exist in go.mod.
+		//
+		// Trivy uses `stdlib` to refer to the standard library defined in `toolchain` or `go` directives in go.mod.
+		// Trivy supposedly uses the minimum version between `toolchain` and `go` directives (see https://trivy.dev/v0.59/docs/coverage/language/golang/#gomod-stdlib)
+		// but in reality it ALWAYS uses the version defined in `toolchain` when it exists.
+		if isGoModStdLib {
+			// If there is a `toolchain` directive use its line.
+			if strings.HasPrefix(lineText, "toolchain ") {
+				return line
+			}
+			// Only use the `go` directive line after scanning the whole file and there is no `toolchain` directive
+			if strings.HasPrefix(lineText, "go ") {
+				goDirectiveLine = line
+			}
+		} else if strings.Contains(lineText, pkgName) {
 			return line
 		}
 		line++
 	}
 
-	return 0
+	return goDirectiveLine
 }
 
 // Find the smallest version increment that fixes a vulnerabillity, assuming semantic version format.
 // Doesn't support package managers that use a different versioning scheme. (like Ruby's `~>`)
 // Otherwise, return the original versions list.
+//
+// The semver library we're using requires a `v` prefix for the version.
+// Usually, Trivy prefixes `InstalledVersion` but not `FixedVersion`.
+// For safety, we sanitize both values, by removing and adding a `v` prefix.
 func findLeastDisruptiveFixedVersion(vuln ptypes.DetectedVulnerability) string {
+	sanitizedInstalledVersion := fmt.Sprintf("v%s", strings.TrimPrefix(vuln.InstalledVersion, "v"))
+
 	allUpdates := strings.Split(vuln.FixedVersion, ", ")
 	possibleUpdates := lo.Filter(allUpdates, func(v string, index int) bool {
-		return semver.Compare(fmt.Sprintf("v%s", v), fmt.Sprintf("v%s", vuln.InstalledVersion)) > 0
+		sanitizedPossibleUpdateVersion := fmt.Sprintf("v%s", strings.TrimPrefix(v, "v"))
+		return semver.Compare(sanitizedPossibleUpdateVersion, sanitizedInstalledVersion) > 0
 	})
 	semver.Sort(possibleUpdates)
 
