@@ -774,10 +774,20 @@ func TestFindLeastDisruptiveFixedVerstion(t *testing.T) {
 	}
 
 	testSet := map[string]testData{
-		"semver with expected format": {
+		"semver with expected format (installed w/ v prefix)": {
 			fixedVersion:         "1.2.3, 3.2.1, 1.2.5",
-			installedVersion:     "1.2.4",
+			installedVersion:     "v1.2.4",
 			expectedFixedVersion: "1.2.5",
+		},
+		"semver with expected format (fixed w/ v prefix)": {
+			fixedVersion:         "v1.2.3, v3.2.1, v1.2.5",
+			installedVersion:     "1.2.4",
+			expectedFixedVersion: "v1.2.5",
+		},
+		"semver with expected format (installed and fixed w/ v prefix)": {
+			fixedVersion:         "v1.2.3, v3.2.1, v1.2.5",
+			installedVersion:     "v1.2.4",
+			expectedFixedVersion: "v1.2.5",
 		},
 		"not semver with expected format": {
 			fixedVersion:         "vê um três, vê dois um",

@@ -376,23 +376,47 @@ func fallbackSearchForLineNumber(sourceDir, fileName, pkgName string) int {
 	scanner := bufio.NewScanner(f)
 
 	line := 1
+	goDirectiveLine := 0
 	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), pkgName) {
+		lineText := strings.TrimSpace(scanner.Text())
+
+		// Issues in go standard library are reported in package `stdlib` which does not literally exist in go.mod.
+		//
+		// Trivy uses `stdlib` to refer to the standard library defined in `toolchain` or `go` directives in go.mod.
+		// Trivy supposedly uses the minimum version between `toolchain` and `go` directives (see https://trivy.dev/v0.59/docs/coverage/language/golang/#gomod-stdlib)
+		// but in reality it ALWAYS uses the version defined in `toolchain` when it exists.
+		if fileName == "go.mod" && pkgName == "stdlib" {
+			// If there is a `toolchain` directive use its line.
+			if strings.HasPrefix(lineText, "toolchain ") {
+				return line
+			}
+			// Only use the `go` directive line after scanning the whole file and there is no `toolchain` directive
+			if strings.HasPrefix(lineText, "go ") {
+				goDirectiveLine = line
+			}
+		} else if strings.Contains(lineText, pkgName) {
 			return line
 		}
 		line++
 	}
 
-	return 0
+	return goDirectiveLine
 }
 
 // Find the smallest version increment that fixes a vulnerabillity, assuming semantic version format.
 // Doesn't support package managers that use a different versioning scheme. (like Ruby's `~>`)
 // Otherwise, return the original versions list.
+//
+// The semver library we're using requires a `v` prefix for the version.
+// Usually, Trivy prefixes `InstalledVersion` but not `FixedVersion`.
+// For safety, we sanitize both values, by removing and adding a `v` prefix.
 func findLeastDisruptiveFixedVersion(vuln ptypes.DetectedVulnerability) string {
+	sanitizedInstalledVersion := fmt.Sprintf("v%s", strings.TrimPrefix(vuln.InstalledVersion, "v"))
+
 	allUpdates := strings.Split(vuln.FixedVersion, ", ")
 	possibleUpdates := lo.Filter(allUpdates, func(v string, index int) bool {
-		return semver.Compare(fmt.Sprintf("v%s", v), fmt.Sprintf("v%s", vuln.InstalledVersion)) > 0
+		sanitizedPossibleUpdateVersion := fmt.Sprintf("v%s", strings.TrimPrefix(v, "v"))
+		return semver.Compare(sanitizedPossibleUpdateVersion, sanitizedInstalledVersion) > 0
 	})
 	semver.Sort(possibleUpdates)
 
