@@ -72,6 +72,9 @@ func TestRun(t *testing.T) {
 				ID: ruleIDVulnerability,
 			},
 			{
+				ID: ruleIDVulnerabilityHigh,
+			},
+			{
 				ID: "unknown",
 			},
 		},
@@ -231,7 +234,7 @@ func TestRun(t *testing.T) {
 			{
 				File:      fileName,
 				Line:      1,
-				PatternID: ruleIDVulnerability,
+				PatternID: ruleIDVulnerabilityHigh,
 				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id no fixed version: vuln no fixed version) (no fix available)",
 				SourceID:  "vuln id no fixed version",
 			},
@@ -606,7 +609,7 @@ func TestGetRuleIdFromTrivySeverity(t *testing.T) {
 		},
 		"high": {
 			trivySeverity:  "hiGh",
-			expectedRuleID: ruleIDVulnerability,
+			expectedRuleID: ruleIDVulnerabilityHigh,
 		},
 		"critical": {
 			trivySeverity:  "CrItIcAl",
@@ -634,6 +637,7 @@ func TestGetTrivySeveritiesFromPatterns(t *testing.T) {
 	// Assert
 	patterns := []codacy.Pattern{
 		{ID: ruleIDVulnerability},
+		{ID: ruleIDVulnerabilityHigh},
 		{ID: ruleIDVulnerabilityMedium},
 		{ID: ruleIDVulnerabilityMinor},
 		{ID: ruleIDSecret},
