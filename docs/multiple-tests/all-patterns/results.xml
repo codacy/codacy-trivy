@@ -28,10 +28,10 @@
             severity="error"
         />
         <error
-            source="vulnerability"
+            source="vulnerability_high"
             line="3"
             message="Insecure dependency maven/org.apache.seatunnel/seatunnel@1.0.0 (CVE-2023-49198: Apache SeaTunnel SQL Injection vulnerability) (update to 1.0.1)"
-            severity="error"
+            severity="high"
         />
         <error
             source="vulnerability_medium"
