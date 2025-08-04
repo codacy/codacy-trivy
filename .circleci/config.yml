@@ -1,22 +1,22 @@
 version: 2.1
 
 orbs:
-  codacy: codacy/base@12.0.0
+  codacy: codacy/base@12.2.0
   codacy_plugins_test: codacy/plugins-test@2.0.11
 
 references:
   install_trivy_and_download_dbs: &install_trivy_and_download_dbs
     persist_to_workspace: true
-    # https://aquasecurity.github.io/trivy/v0.59/getting-started/installation/#install-script
+    # https://aquasecurity.github.io/trivy/v0.65/getting-started/installation/#install-script
     cmd: |
-      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.59.1
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.65.0
       mkdir cache
       ./trivy --cache-dir ./cache image --download-db-only
 
   build_and_publish_docker: &build_and_publish_docker
     persist_to_workspace: true
     cmd: |
-      docker build -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.59.1 .
+      docker build -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.65.0 .
       docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
 
 workflows:

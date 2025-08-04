@@ -13,6 +13,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
+	"github.com/aquasecurity/trivy/pkg/commands/artifact"
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
@@ -125,9 +126,15 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string) (ptypes.
 			// This is REQUIRED for detecting vulnerabilites in go standard library.
 			DetectionPriority: ftypes.PriorityComprehensive,
 		},
+		// Make Trivy automatically select a severity for a vulnerability, from its many sources.
+		// This is used by default when calling Trivy from the command line but given our Trivy usage, we need to make it explicit.
+		VulnerabilityOptions: flag.VulnerabilityOptions{
+			VulnSeveritySources: []dbTypes.SourceID{dbTypes.SourceID("auto")},
+		},
 	}
 
-	runner, err := t.runnerFactory.NewRunner(ctx, config)
+	// Right now we only support vulnerability scans for file system targets.
+	runner, err := t.runnerFactory.NewRunner(ctx, config, artifact.TargetFilesystem)
 	if err != nil {
 		return ptypes.Report{}, err
 	}

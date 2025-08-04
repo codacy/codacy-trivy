@@ -13,3 +13,7 @@ bin
 cache
 *.gen.go
 .codacyrc
+
+
+#Ignore vscode AI rules
+.github/copilot-instructions.md

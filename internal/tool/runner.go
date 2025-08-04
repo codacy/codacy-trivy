@@ -9,13 +9,13 @@ import (
 
 // RunnerFactory can create new Trivy runners.
 type RunnerFactory interface {
-	NewRunner(ctx context.Context, config flag.Options) (artifact.Runner, error)
+	NewRunner(ctx context.Context, config flag.Options, targetKind artifact.TargetKind, opts ...artifact.RunnerOption) (artifact.Runner, error)
 }
 
 type defaultRunnerFactory struct{}
 
-func (f defaultRunnerFactory) NewRunner(ctx context.Context, config flag.Options) (artifact.Runner, error) {
-	runner, err := artifact.NewRunner(ctx, config)
+func (f defaultRunnerFactory) NewRunner(ctx context.Context, config flag.Options, targetKind artifact.TargetKind, opts ...artifact.RunnerOption) (artifact.Runner, error) {
+	runner, err := artifact.NewRunner(ctx, config, targetKind, opts...)
 	if err != nil {
 		return nil, &ToolError{msg: "Failed to initialize Codacy Trivy", w: err}
 	}
