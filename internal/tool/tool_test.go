@@ -99,6 +99,9 @@ func TestRun(t *testing.T) {
 			Target:            srcDir,
 			DetectionPriority: ftypes.PriorityComprehensive,
 		},
+		VulnerabilityOptions: flag.VulnerabilityOptions{
+			VulnSeveritySources: []dbtypes.SourceID{dbtypes.SourceID("auto")},
+		},
 	}
 
 	report := ptypes.Report{
@@ -499,6 +502,9 @@ func TestRunScanFilesystemError(t *testing.T) {
 			Scanners:          ptypes.Scanners{ptypes.VulnerabilityScanner},
 			Target:            sourceDir,
 			DetectionPriority: ftypes.PriorityComprehensive,
+		},
+		VulnerabilityOptions: flag.VulnerabilityOptions{
+			VulnSeveritySources: []dbtypes.SourceID{dbtypes.SourceID("auto")},
 		},
 	}
 

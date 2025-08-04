@@ -126,6 +126,11 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string) (ptypes.
 			// This is REQUIRED for detecting vulnerabilites in go standard library.
 			DetectionPriority: ftypes.PriorityComprehensive,
 		},
+		// Make Trivy automatically select a severity for a vulnerability, from its many sources.
+		// This is used by default when calling Trivy from the command line but given our Trivy usage, we need to make it explicit.
+		VulnerabilityOptions: flag.VulnerabilityOptions{
+			VulnSeveritySources: []dbTypes.SourceID{dbTypes.SourceID("auto")},
+		},
 	}
 
 	// Right now we only support vulnerability scans for file system targets.
