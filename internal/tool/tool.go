@@ -13,6 +13,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
+	"github.com/aquasecurity/trivy/pkg/commands/artifact"
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
@@ -127,7 +128,8 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string) (ptypes.
 		},
 	}
 
-	runner, err := t.runnerFactory.NewRunner(ctx, config)
+	// Right now we only support vulnerability scans for file system targets.
+	runner, err := t.runnerFactory.NewRunner(ctx, config, artifact.TargetFilesystem)
 	if err != nil {
 		return ptypes.Report{}, err
 	}

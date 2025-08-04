@@ -14,7 +14,6 @@ import (
 	"github.com/CycloneDX/cyclonedx-go"
 	dbtypes "github.com/aquasecurity/trivy-db/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/commands/artifact"
-	fartifact "github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
@@ -103,7 +102,7 @@ func TestRun(t *testing.T) {
 	}
 
 	report := ptypes.Report{
-		ArtifactType: fartifact.TypeFilesystem,
+		ArtifactType: ftypes.TypeFilesystem,
 		Results: ptypes.Results{
 			{
 				Target: fileName,
@@ -289,7 +288,10 @@ func TestRun(t *testing.T) {
 					Tools: &cyclonedx.ToolsChoice{
 						Components: &[]cyclonedx.Component{
 							{
-								Type:    "application",
+								Type: "application",
+								Manufacturer: &cyclonedx.OrganizationalEntity{
+									Name: "Aqua Security Software Ltd.",
+								},
 								Group:   "aquasecurity",
 								Name:    "trivy",
 								Version: "dev",
@@ -832,7 +834,7 @@ type mockRunnerFactory struct {
 	mockRunner artifact.Runner
 }
 
-func (f mockRunnerFactory) NewRunner(_ context.Context, _ flag.Options) (artifact.Runner, error) {
+func (f mockRunnerFactory) NewRunner(_ context.Context, _ flag.Options, _ artifact.TargetKind, _ ...artifact.RunnerOption) (artifact.Runner, error) {
 	return f.mockRunner, nil
 }
 
@@ -840,6 +842,6 @@ type errorRunnerFactory struct {
 	err error
 }
 
-func (f errorRunnerFactory) NewRunner(_ context.Context, _ flag.Options) (artifact.Runner, error) {
+func (f errorRunnerFactory) NewRunner(_ context.Context, _ flag.Options, _ artifact.TargetKind, _ ...artifact.RunnerOption) (artifact.Runner, error) {
 	return nil, f.err
 }

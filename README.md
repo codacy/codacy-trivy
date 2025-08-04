@@ -28,8 +28,7 @@ go mod download
  3. Run the DocGenerator:
 
 ```bash
-go run ./doc-generator.go &&\
-scala-cli doc-generator.sc
+go run ./cmd/docgen
 ```
 
 ## Test
