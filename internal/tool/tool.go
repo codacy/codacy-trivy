@@ -31,6 +31,7 @@ import (
 const (
 	ruleIDSecret              string = "secret"
 	ruleIDVulnerability       string = "vulnerability"
+	ruleIDVulnerabilityHigh   string = "vulnerability_high"
 	ruleIDVulnerabilityMedium string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor  string = "vulnerability_minor"
 
@@ -44,7 +45,7 @@ const (
 )
 
 // ruleIDsVulnerability contains IDs all rule (or pattern) IDs that find vulnerable dependencies.
-var ruleIDsVulnerability = []string{ruleIDVulnerability, ruleIDVulnerabilityMedium, ruleIDVulnerabilityMinor}
+var ruleIDsVulnerability = []string{ruleIDVulnerability, ruleIDVulnerabilityHigh, ruleIDVulnerabilityMedium, ruleIDVulnerabilityMinor}
 
 // New creates a new instance of Codacy Trivy.
 func New() codacyTrivy {
@@ -310,7 +311,9 @@ func getRuleIDFromTrivySeverity(severity string) (string, error) {
 		return ruleIDVulnerabilityMinor, nil
 	case trivySeverityMedium:
 		return ruleIDVulnerabilityMedium, nil
-	case trivySeverityHigh, trivySeverityCritical:
+	case trivySeverityHigh:
+		return ruleIDVulnerabilityHigh, nil
+	case trivySeverityCritical:
 		return ruleIDVulnerability, nil
 	default:
 		return "", &ToolError{msg: fmt.Sprintf("Failed to run Codacy Trivy: unexpected Trivy severity %s", severity)}
@@ -324,7 +327,9 @@ func getTrivySeveritiesFromPatterns(patterns []codacy.Pattern) []dbTypes.Severit
 	for _, pattern := range patterns {
 		switch strings.ToLower(pattern.ID) {
 		case ruleIDVulnerability:
-			trivySeverities = append(trivySeverities, dbTypes.SeverityCritical, dbTypes.SeverityHigh)
+			trivySeverities = append(trivySeverities, dbTypes.SeverityCritical)
+		case ruleIDVulnerabilityHigh:
+			trivySeverities = append(trivySeverities, dbTypes.SeverityHigh)
 		case ruleIDVulnerabilityMedium:
 			trivySeverities = append(trivySeverities, dbTypes.SeverityMedium)
 		case ruleIDVulnerabilityMinor:
