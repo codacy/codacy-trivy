@@ -33,6 +33,7 @@ const (
 	ruleIDVulnerability       string = "vulnerability"
 	ruleIDVulnerabilityMedium string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor  string = "vulnerability_minor"
+	ruleIDMaliciousPackages   string = "malicious_packages"
 
 	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
@@ -86,7 +87,11 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 
 	secretScanningIssues := t.runSecretScanning(toolExecution)
 
+	openssfScanner := NewOpenSSFScanner()
+	openssfScanningIssues := openssfScanner.ScanForMaliciousPackages(report, toolExecution)
+
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
+	allIssues = append(allIssues, openssfScanningIssues...)
 	allIssues = append(allIssues, sbom)
 
 	return allIssues, nil
@@ -290,7 +295,7 @@ func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
 	}
 
 	noSupportedPatterns := lo.NoneBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
-		return p.ID == ruleIDSecret || lo.Contains(ruleIDsVulnerability, p.ID)
+		return p.ID == ruleIDSecret || p.ID == ruleIDMaliciousPackages || lo.Contains(ruleIDsVulnerability, p.ID)
 	})
 	if noSupportedPatterns {
 		patternIDs := lo.Map(*toolExecution.Patterns, func(p codacy.Pattern, _ int) string {

@@ -95,5 +95,15 @@ func trivyRules() Rules {
 			ScanType:    "SCA",
 			Enabled:     true,
 		},
+		{
+			ID:          "malicious_packages",
+			Title:       "Malicious packages detection",
+			Description: "Detects malicious packages identified in the OpenSSF Malicious Packages database, including typosquatting attacks, dependency confusion, and packages with malicious payloads.",
+			Level:       "Error",
+			Category:    "Security",
+			SubCategory: "InsecureModulesLibraries",
+			ScanType:    "SCA",
+			Enabled:     true,
+		},
 	}
 }
