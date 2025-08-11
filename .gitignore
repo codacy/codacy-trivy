@@ -19,4 +19,4 @@ cache
 .github/copilot-instructions.md
 
 #Ignore cursor AI rules
-.cursor/rules/codacy.mdc
+.cursor/rules/codacy.mdc   
