@@ -30,5 +30,6 @@ RUN adduser -u 2004 -D docker
 COPY --from=builder --chown=docker:docker /src/bin /dist/bin
 COPY --from=builder --chown=docker:docker /src/docs /docs 
 COPY --chown=docker:docker cache/ /dist/cache/codacy-trivy
+COPY --chown=docker:docker openssf-cache/osv/ /dist/cache/openssf-malicious-packages/
 
 CMD [ "/dist/bin/codacy-trivy" ]

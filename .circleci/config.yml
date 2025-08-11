@@ -12,6 +12,13 @@ references:
       curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.65.0
       mkdir cache
       ./trivy --cache-dir ./cache image --download-db-only
+      # Download OpenSSF malicious packages database
+      mkdir -p openssf-cache
+      echo "Downloading OpenSSF malicious packages database..."
+      curl -sfL https://api.github.com/repos/ossf/malicious-packages/tarball/main | tar -xz --strip-components=1 -C openssf-cache
+      # Copy OSV files to the expected cache location
+      mkdir -p openssf-cache/osv
+      find openssf-cache -name "*.json" -path "*/osv/*" -exec cp {} openssf-cache/osv/ \;
 
   build_and_publish_docker: &build_and_publish_docker
     persist_to_workspace: true
