@@ -13,6 +13,7 @@ bin
 cache
 *.gen.go
 .codacyrc
+trivy
 
 
 #Ignore vscode AI rules
