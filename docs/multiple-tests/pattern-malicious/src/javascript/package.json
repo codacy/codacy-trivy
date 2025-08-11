@@ -1,0 +1,8 @@
+{
+  "name": "malicious-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "sdge-it-tdg-dynamicloadprofiles": "1.0.1"
+  }
+}
