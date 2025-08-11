@@ -1,0 +1,27 @@
+[
+  {
+    "patternId": "secret",
+    "title": "Secret detection",
+    "description": "Detects secrets that should not be committed to a repository or otherwise disclosed, such as secret keys, passwords, and authentication tokens from multiple products."
+  },
+  {
+    "patternId": "vulnerability",
+    "title": "Insecure dependencies detection (critical and high severity)",
+    "description": "Detects insecure dependencies (critical and high severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities."
+  },
+  {
+    "patternId": "vulnerability_medium",
+    "title": "Insecure dependencies detection (medium severity)",
+    "description": "Detects insecure dependencies (medium severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities."
+  },
+  {
+    "patternId": "vulnerability_minor",
+    "title": "Insecure dependencies detection (minor severity)",
+    "description": "Detects insecure dependencies (minor severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities."
+  },
+  {
+    "patternId": "malicious_packages",
+    "title": "Malicious packages detection",
+    "description": "Detects malicious packages identified in the OpenSSF Malicious Packages database, including typosquatting attacks, dependency confusion, and packages with malicious payloads."
+  }
+]
