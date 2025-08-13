@@ -1,19 +1,21 @@
+// Package tool implements the Codacy Trivy tool, including the OpenSSF malicious
+// packages scanner and its prebuilt-index loading for performance.
 package tool
 
 import (
-	"compress/gzip"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
-	"sync"
+    "compress/gzip"
+    "encoding/json"
+    "fmt"
+    "os"
+    "path/filepath"
+    "runtime"
+    "strings"
+    "sync"
+    "log"
 
-	ptypes "github.com/aquasecurity/trivy/pkg/types"
-	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
-	"golang.org/x/mod/semver"
+    ptypes "github.com/aquasecurity/trivy/pkg/types"
+    codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+    "golang.org/x/mod/semver"
 )
 
 const (
@@ -74,11 +76,12 @@ func (s *OpenSSFScanner) ScanForMaliciousPackages(report ptypes.Report, toolExec
 		return results
 	}
 
-	if err := s.ensureIndexBuilt(); err != nil {
-		fmt.Printf("Warning: Failed to load OpenSSF malicious packages database: %v\n", err)
+    if err := s.ensureIndexBuilt(); err != nil {
+        log.Printf("Warning: Failed to load OpenSSF malicious packages database: %v", err)
 		return results
 	}
 
+	// Primary: use Trivy-detected packages
 	for _, result := range report.Results {
 		for _, pkg := range result.Packages {
 			pkgType := ""
@@ -108,9 +111,64 @@ func (s *OpenSSFScanner) ScanForMaliciousPackages(report ptypes.Report, toolExec
 					break
 				}
 			}
+
+			// Fallback: if no packages detected for a known manifest, try parsing it directly
+			if len(result.Packages) == 0 && strings.HasSuffix(result.Target, "package.json") {
+				results = append(results, s.scanNpmManifest(toolExecution.SourceDir, result.Target, toolExecution.Files)...)
+			}
+		}
+	}
+
+	// If Trivy produced no results at all, still try known manifests from provided files
+	if len(report.Results) == 0 && toolExecution.Files != nil {
+		for _, f := range *toolExecution.Files {
+			if strings.HasSuffix(f, "package.json") {
+				results = append(results, s.scanNpmManifest(toolExecution.SourceDir, f, toolExecution.Files)...)
+			}
 		}
 	}
 	return results
+}
+
+type npmPkg struct {
+	Dependencies map[string]string `json:"dependencies"`
+}
+
+func (s *OpenSSFScanner) scanNpmManifest(sourceDir, relativePath string, knownFiles *[]string) []codacy.Result {
+	var out []codacy.Result
+	if !s.shouldAnalyzeFile(knownFiles, relativePath) {
+		return out
+	}
+	full := filepath.Join(sourceDir, relativePath)
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return out
+	}
+	var pj npmPkg
+	if err := json.Unmarshal(data, &pj); err != nil {
+		return out
+	}
+	for name, ver := range pj.Dependencies {
+		pkgNameLower := strings.ToLower(name)
+		candidates := s.lookup("npm", pkgNameLower)
+		if len(candidates) == 0 {
+			continue
+		}
+		for _, cand := range candidates {
+			if s.versionMatches(ver, cand.Versions, cand.Ranges) {
+				issue := codacy.Issue{
+					File:      relativePath,
+					Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", name, ver, cand.Summary),
+					Line:      1,
+					PatternID: ruleIDMaliciousPackages,
+					SourceID:  cand.ID,
+				}
+				out = append(out, issue)
+				break
+			}
+		}
+	}
+	return out
 }
 
 func (s *OpenSSFScanner) lookup(ecosystemLower, pkgLower string) []osvShallow {
@@ -179,10 +237,13 @@ func (s *OpenSSFScanner) ensureIndexBuilt() error {
 		go func() {
 			defer wg.Done()
 			for p := range fileCh {
-				data, err := ioutil.ReadFile(p)
+                data, err := os.ReadFile(p)
 				if err != nil { continue }
-				var f osvFile
-				if err := json.Unmarshal(data, &f); err != nil { continue }
+                var f osvFile
+                if err := json.Unmarshal(data, &f); err != nil {
+                    log.Printf("Warning: Failed to parse OSV file %s: %v", p, err)
+                    continue
+                }
 				for _, aff := range f.Affected {
 					eco := strings.ToLower(aff.Package.Ecosystem)
 					name := strings.ToLower(aff.Package.Name)
