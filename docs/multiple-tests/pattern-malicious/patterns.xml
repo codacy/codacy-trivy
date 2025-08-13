@@ -2,3 +2,4 @@
 <module name="root">
     <module name="malicious_packages" />
 </module>
+
