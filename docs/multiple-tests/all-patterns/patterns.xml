@@ -2,6 +2,8 @@
 <module name="root">
     <module name="secret" />
     <module name="vulnerability" />
+    <module name="vulnerability_critical" />
+    <module name="vulnerability_high" />
     <module name="vulnerability_medium" />
     <module name="vulnerability_minor" />
 </module>

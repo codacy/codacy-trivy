@@ -13,10 +13,11 @@ bin
 cache
 *.gen.go
 .codacyrc
+trivy
 
 
 #Ignore vscode AI rules
 .github/copilot-instructions.md
 
 #Ignore cursor AI rules
-.cursor/rules/codacy.mdc
+.cursor/rules/codacy.mdc   

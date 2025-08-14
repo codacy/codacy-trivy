@@ -2,7 +2,7 @@ version: 2.1
 
 orbs:
   codacy: codacy/base@12.2.0
-  codacy_plugins_test: codacy/plugins-test@2.0.11
+  codacy_plugins_test: codacy/plugins-test@2.1.0
 
 references:
   install_trivy_and_download_dbs: &install_trivy_and_download_dbs
@@ -16,7 +16,7 @@ references:
   build_and_publish_docker: &build_and_publish_docker
     persist_to_workspace: true
     cmd: |
-      docker build -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.65.0 .
+      docker build --no-cache -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.65.0 .
       docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
 
 workflows:
