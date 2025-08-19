@@ -23,7 +23,7 @@ references:
   build_and_publish_docker: &build_and_publish_docker
     persist_to_workspace: true
     cmd: |
-      docker build -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.65.0 .
+      docker build --no-cache -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.65.0 .
       docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
 
 workflows:
