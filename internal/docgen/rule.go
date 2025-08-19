@@ -67,6 +67,16 @@ func trivyRules() Rules {
 		},
 		{
 			ID:          "vulnerability",
+			Title:       "Insecure dependencies detection (critical and high severity)[DEPRECATED]",
+			Description: "Detects insecure dependencies (critical and high severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.[DEPRECATED]",
+			Level:       "Error",
+			Category:    "Security",
+			SubCategory: "InsecureModulesLibraries",
+			ScanType:    "SCA",
+			Enabled:     false,
+		},
+		{
+			ID:          "vulnerability_critical",
 			Title:       "Insecure dependencies detection (critical severity)",
 			Description: "Detects insecure dependencies (critical severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
 			Level:       "Error",

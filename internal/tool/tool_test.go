@@ -71,9 +71,6 @@ func TestRun(t *testing.T) {
 				ID: ruleIDVulnerability,
 			},
 			{
-				ID: ruleIDVulnerabilityHigh,
-			},
-			{
 				ID: "unknown",
 			},
 		},
@@ -236,7 +233,7 @@ func TestRun(t *testing.T) {
 			{
 				File:      fileName,
 				Line:      1,
-				PatternID: ruleIDVulnerabilityHigh,
+				PatternID: ruleIDVulnerability,
 				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id no fixed version: vuln no fixed version) (no fix available)",
 				SourceID:  "vuln id no fixed version",
 			},
@@ -621,6 +618,49 @@ func TestGetRuleIdFromTrivySeverity(t *testing.T) {
 		},
 		"critical": {
 			trivySeverity:  "CrItIcAl",
+			expectedRuleID: ruleIDVulnerabilityCritical,
+		},
+		"unknown": {
+			trivySeverity: "unknown",
+			expectedErr:   &ToolError{msg: "Failed to run Codacy Trivy: unexpected Trivy severity unknown"},
+		},
+	}
+
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			// Act
+			ruleID, err := getRuleIDFromTrivySeverity(testData.trivySeverity, false)
+
+			// Assert
+			assert.Equal(t, testData.expectedRuleID, ruleID)
+			assert.Equal(t, testData.expectedErr, err)
+		})
+	}
+}
+
+func TestGetRuleIdFromTrivySeverityWithDeprecatedPattern(t *testing.T) {
+	// Arrange
+	type testData struct {
+		trivySeverity  string
+		expectedRuleID string
+		expectedErr    error
+	}
+
+	testSet := map[string]testData{
+		"low": {
+			trivySeverity:  "LoW",
+			expectedRuleID: ruleIDVulnerabilityMinor,
+		},
+		"medium": {
+			trivySeverity:  "medium",
+			expectedRuleID: ruleIDVulnerabilityMedium,
+		},
+		"high": {
+			trivySeverity:  "hiGh",
+			expectedRuleID: ruleIDVulnerability,
+		},
+		"critical": {
+			trivySeverity:  "CrItIcAl",
 			expectedRuleID: ruleIDVulnerability,
 		},
 		"unknown": {
@@ -632,7 +672,7 @@ func TestGetRuleIdFromTrivySeverity(t *testing.T) {
 	for testName, testData := range testSet {
 		t.Run(testName, func(t *testing.T) {
 			// Act
-			ruleID, err := getRuleIDFromTrivySeverity(testData.trivySeverity)
+			ruleID, err := getRuleIDFromTrivySeverity(testData.trivySeverity, true)
 
 			// Assert
 			assert.Equal(t, testData.expectedRuleID, ruleID)
@@ -644,7 +684,7 @@ func TestGetRuleIdFromTrivySeverity(t *testing.T) {
 func TestGetTrivySeveritiesFromPatterns(t *testing.T) {
 	// Assert
 	patterns := []codacy.Pattern{
-		{ID: ruleIDVulnerability},
+		{ID: ruleIDVulnerabilityCritical},
 		{ID: ruleIDVulnerabilityHigh},
 		{ID: ruleIDVulnerabilityMedium},
 		{ID: ruleIDVulnerabilityMinor},
@@ -653,7 +693,30 @@ func TestGetTrivySeveritiesFromPatterns(t *testing.T) {
 	}
 
 	// Act
-	result := getTrivySeveritiesFromPatterns(patterns)
+	result := getTrivySeveritiesFromPatterns(patterns, false)
+
+	// Assert
+	expectedSeverities := []dbtypes.Severity{
+		dbtypes.SeverityCritical,
+		dbtypes.SeverityHigh,
+		dbtypes.SeverityMedium,
+		dbtypes.SeverityLow,
+	}
+	assert.ElementsMatch(t, expectedSeverities, result)
+}
+
+func TestGetTrivySeveritiesFromPatternsWithDeprecatedPattern(t *testing.T) {
+	// Assert
+	patterns := []codacy.Pattern{
+		{ID: ruleIDVulnerability},
+		{ID: ruleIDVulnerabilityMedium},
+		{ID: ruleIDVulnerabilityMinor},
+		{ID: ruleIDSecret},
+		{ID: "Unknown"},
+	}
+
+	// Act
+	result := getTrivySeveritiesFromPatterns(patterns, true)
 
 	// Assert
 	expectedSeverities := []dbtypes.Severity{
