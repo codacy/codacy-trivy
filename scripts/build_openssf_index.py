@@ -18,14 +18,13 @@ def extract_entries(doc):
         pkg = aff.get('package', {})
         eco = (pkg.get('ecosystem') or '').lower()
         name = (pkg.get('name') or '').lower()
-        if not eco or not name:
-            continue
-        entries.append((eco, name, {
-            'id': doc.get('id'),
-            'summary': doc.get('summary'),
-            'versions': aff.get('versions') or [],
-            'ranges': aff.get('ranges') or [],
-        }))
+        if eco and name:
+            entries.append((eco, name, {
+                'id': doc.get('id'),
+                'summary': doc.get('summary'),
+                'versions': aff.get('versions') or [],
+                'ranges': aff.get('ranges') or [],
+            }))
     return entries
 
 
@@ -35,6 +34,7 @@ def process_file(path):
         return extract_entries(doc)
     except Exception:
         return []
+
 
 files = []
 for root, _, fns in os.walk(BASE):
