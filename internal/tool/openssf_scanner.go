@@ -3,25 +3,39 @@
 package tool
 
 import (
-    "compress/gzip"
-    "encoding/json"
-    "fmt"
-    "os"
-    "path/filepath"
-    "runtime"
-    "strings"
-    "sync"
-    "log"
+	"compress/gzip"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
 
-    ptypes "github.com/aquasecurity/trivy/pkg/types"
-    codacy "github.com/codacy/codacy-engine-golang-seed/v6"
-    "golang.org/x/mod/semver"
+	ptypes "github.com/aquasecurity/trivy/pkg/types"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	"golang.org/x/mod/semver"
 )
 
 const (
-	openssfCacheDir = "/dist/cache/openssf-malicious-packages"
+	openssfCacheDir  = "/dist/cache/openssf-malicious-packages"
 	openssfIndexPath = "/dist/cache/openssf-index.json.gz"
 )
+
+func getOpenSSFIndexPath() string {
+	if v := os.Getenv("OPENSSF_INDEX_PATH"); v != "" {
+		return v
+	}
+	return openssfIndexPath
+}
+
+func getOpenSSFCacheDir() string {
+	if v := os.Getenv("OPENSSF_CACHE_DIR"); v != "" {
+		return v
+	}
+	return openssfCacheDir
+}
 
 // Minimal OSV fields we care about
 type osvRange struct {
@@ -49,7 +63,7 @@ type osvFile struct {
 			Name      string `json:"name"`
 			Ecosystem string `json:"ecosystem"`
 		} `json:"package"`
-		Versions []string  `json:"versions,omitempty"`
+		Versions []string   `json:"versions,omitempty"`
 		Ranges   []osvRange `json:"ranges,omitempty"`
 	} `json:"affected"`
 }
@@ -76,58 +90,76 @@ func (s *OpenSSFScanner) ScanForMaliciousPackages(report ptypes.Report, toolExec
 		return results
 	}
 
-    if err := s.ensureIndexBuilt(); err != nil {
-        log.Printf("Warning: Failed to load OpenSSF malicious packages database: %v", err)
+	if err := s.ensureIndexBuilt(); err != nil {
+		log.Printf("Warning: Failed to load OpenSSF malicious packages database: %v", err)
 		return results
 	}
 
-	// Primary: use Trivy-detected packages
-	for _, result := range report.Results {
-		for _, pkg := range result.Packages {
-			pkgType := ""
-			if pkg.Identifier.PURL != nil {
-				pkgType = strings.ToLower(pkg.Identifier.PURL.Type)
-			}
-			pkgNameLower := strings.ToLower(pkg.Name)
-
-			candidates := s.lookup(pkgType, pkgNameLower)
-			if len(candidates) == 0 {
-				continue
-			}
-			// Check version against candidates
-			for _, cand := range candidates {
-				if s.versionMatches(pkg.Version, cand.Versions, cand.Ranges) {
-					lineNumber := s.findPackageLineNumber(toolExecution.SourceDir, result.Target, pkg.Name)
-					issue := codacy.Issue{
-						File:      result.Target,
-						Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", pkg.Name, pkg.Version, cand.Summary),
-						Line:      lineNumber,
-						PatternID: ruleIDMaliciousPackages,
-						SourceID:  cand.ID,
-					}
-					if s.shouldAnalyzeFile(toolExecution.Files, result.Target) {
-						results = append(results, issue)
-					}
-					break
-				}
-			}
-
-			// Fallback: if no packages detected for a known manifest, try parsing it directly
-			if len(result.Packages) == 0 && strings.HasSuffix(result.Target, "package.json") {
-				results = append(results, s.scanNpmManifest(toolExecution.SourceDir, result.Target, toolExecution.Files)...)
-			}
-		}
-	}
-
-	// If Trivy produced no results at all, still try known manifests from provided files
-	if len(report.Results) == 0 && toolExecution.Files != nil {
-		for _, f := range *toolExecution.Files {
-			if strings.HasSuffix(f, "package.json") {
-				results = append(results, s.scanNpmManifest(toolExecution.SourceDir, f, toolExecution.Files)...)
-			}
-		}
-	}
+	results = append(results, s.scanReportPackages(report, toolExecution)...)
+	results = append(results, s.scanKnownManifestsIfNoResults(report, toolExecution)...)
 	return results
+}
+
+// scanReportPackages processes Trivy results and detects malicious packages
+func (s *OpenSSFScanner) scanReportPackages(report ptypes.Report, toolExecution codacy.ToolExecution) []codacy.Result {
+	var out []codacy.Result
+	for _, r := range report.Results {
+		out = append(out, s.scanSingleResult(r, toolExecution)...)
+	}
+	return out
+}
+
+// scanSingleResult handles a single Trivy result target
+func (s *OpenSSFScanner) scanSingleResult(result ptypes.Result, toolExecution codacy.ToolExecution) []codacy.Result {
+	var out []codacy.Result
+	// If Trivy found no packages for a manifest, try parsing it directly
+	if len(result.Packages) == 0 && strings.HasSuffix(result.Target, "package.json") {
+		return s.scanNpmManifest(toolExecution.SourceDir, result.Target, toolExecution.Files)
+	}
+
+	for _, pkg := range result.Packages {
+		pkgType := ""
+		if pkg.Identifier.PURL != nil {
+			pkgType = strings.ToLower(pkg.Identifier.PURL.Type)
+		}
+		pkgNameLower := strings.ToLower(pkg.Name)
+
+		candidates := s.lookup(pkgType, pkgNameLower)
+		if len(candidates) == 0 {
+			continue
+		}
+		for _, cand := range candidates {
+			if s.versionMatches(pkg.Version, cand.Versions, cand.Ranges) {
+				lineNumber := s.findPackageLineNumber(toolExecution.SourceDir, result.Target, pkg.Name)
+				issue := codacy.Issue{
+					File:      result.Target,
+					Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", pkg.Name, pkg.Version, cand.Summary),
+					Line:      lineNumber,
+					PatternID: ruleIDMaliciousPackages,
+					SourceID:  cand.ID,
+				}
+				if s.shouldAnalyzeFile(toolExecution.Files, result.Target) {
+					out = append(out, issue)
+				}
+				break
+			}
+		}
+	}
+	return out
+}
+
+// scanKnownManifestsIfNoResults checks known manifests when Trivy produced no results
+func (s *OpenSSFScanner) scanKnownManifestsIfNoResults(report ptypes.Report, toolExecution codacy.ToolExecution) []codacy.Result {
+	var out []codacy.Result
+	if len(report.Results) != 0 || toolExecution.Files == nil {
+		return out
+	}
+	for _, f := range *toolExecution.Files {
+		if strings.HasSuffix(f, "package.json") {
+			out = append(out, s.scanNpmManifest(toolExecution.SourceDir, f, toolExecution.Files)...)
+		}
+	}
+	return out
 }
 
 type npmPkg struct {
@@ -196,38 +228,84 @@ func (s *OpenSSFScanner) ensureIndexBuilt() error {
 		return nil
 	}
 
-	// Prefer prebuilt index if present
-	if fi, err := os.Stat(openssfIndexPath); err == nil && !fi.IsDir() {
-		f, err := os.Open(openssfIndexPath)
-		if err == nil {
-			defer f.Close()
-			gz, err := gzip.NewReader(f)
-			if err == nil {
-				defer gz.Close()
-				dec := json.NewDecoder(gz)
-				var idx map[string]map[string][]osvShallow
-				if err := dec.Decode(&idx); err == nil {
-					s.index = idx
-					s.indexBuilt = true
-					return nil
-				}
-			}
-		}
+	loaded, err := s.tryLoadPrebuiltIndex()
+	if err != nil {
+		return err
+	}
+	if loaded {
+		s.indexBuilt = true
+		return nil
 	}
 
-	// Fallback: build from individual files
+	files, err := s.collectOSVFiles()
+	if err != nil {
+		return err
+	}
+	if err := s.buildIndexFromFiles(files); err != nil {
+		return err
+	}
+
+	s.indexBuilt = true
+	return nil
+}
+
+// tryLoadPrebuiltIndex attempts to load the gzipped prebuilt index
+func (s *OpenSSFScanner) tryLoadPrebuiltIndex() (bool, error) {
+	indexPath := getOpenSSFIndexPath()
+	fi, err := os.Stat(indexPath)
+	if err != nil || fi.IsDir() {
+		return false, nil
+	}
+	f, err := os.Open(indexPath)
+	if err != nil {
+		return false, nil
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return false, nil
+	}
+	defer gz.Close()
+	dec := json.NewDecoder(gz)
+	var idx map[string]map[string][]osvShallow
+	if err := dec.Decode(&idx); err != nil {
+		return false, nil
+	}
+	s.index = idx
+	return true, nil
+}
+
+// collectOSVFiles walks the cache directory and returns all JSON files
+func (s *OpenSSFScanner) collectOSVFiles() ([]string, error) {
 	var files []string
-	if err := filepath.Walk(openssfCacheDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil { return err }
-		if info.IsDir() { return nil }
-		if strings.HasSuffix(path, ".json") { files = append(files, path) }
+	root := getOpenSSFCacheDir()
+	if _, err := os.Stat(root); err != nil {
+		// If the directory does not exist, return empty list (we rely on prebuilt index)
+		return files, nil
+	}
+	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".json") {
+			files = append(files, path)
+		}
 		return nil
 	}); err != nil {
-		return fmt.Errorf("walk openssf dir: %w", err)
+		return nil, fmt.Errorf("walk openssf dir: %w", err)
 	}
+	return files, nil
+}
 
+// buildIndexFromFiles parses the OSV files concurrently and fills the index
+func (s *OpenSSFScanner) buildIndexFromFiles(files []string) error {
 	workers := runtime.GOMAXPROCS(0)
-	if workers < 4 { workers = 4 }
+	if workers < 4 {
+		workers = 4
+	}
 	fileCh := make(chan string, 1024)
 	var wg sync.WaitGroup
 	var idxMu sync.Mutex
@@ -237,32 +315,39 @@ func (s *OpenSSFScanner) ensureIndexBuilt() error {
 		go func() {
 			defer wg.Done()
 			for p := range fileCh {
-                data, err := os.ReadFile(p)
-				if err != nil { continue }
-                var f osvFile
-                if err := json.Unmarshal(data, &f); err != nil {
-                    log.Printf("Warning: Failed to parse OSV file %s: %v", p, err)
-                    continue
-                }
+				data, err := os.ReadFile(p)
+				if err != nil {
+					continue
+				}
+				var f osvFile
+				if err := json.Unmarshal(data, &f); err != nil {
+					log.Printf("Warning: Failed to parse OSV file %s: %v", p, err)
+					continue
+				}
 				for _, aff := range f.Affected {
 					eco := strings.ToLower(aff.Package.Ecosystem)
 					name := strings.ToLower(aff.Package.Name)
-					if eco == "" || name == "" { continue }
+					if eco == "" || name == "" {
+						continue
+					}
 					entry := osvShallow{ID: f.ID, Summary: f.Summary, Versions: aff.Versions, Ranges: aff.Ranges}
 					idxMu.Lock()
 					m, ok := s.index[eco]
-					if !ok { m = make(map[string][]osvShallow); s.index[eco] = m }
+					if !ok {
+						m = make(map[string][]osvShallow)
+						s.index[eco] = m
+					}
 					m[name] = append(m[name], entry)
 					idxMu.Unlock()
 				}
 			}
 		}()
 	}
-	for _, p := range files { fileCh <- p }
+	for _, p := range files {
+		fileCh <- p
+	}
 	close(fileCh)
 	wg.Wait()
-
-	s.indexBuilt = true
 	return nil
 }
 

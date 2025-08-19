@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, json, gzip
+import os, json, gzip
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE = os.environ.get('OPENSSF_OSV_DIR', 'openssf-cache/osv')
@@ -7,24 +7,32 @@ OUT = os.environ.get('OPENSSF_INDEX_OUT', 'openssf-index.json.gz')
 
 # Minimal fields
 
-def process_file(p):
+def read_json_file(path):
+    with open(path, 'r', encoding='utf-8') as fh:
+        return json.load(fh)
+
+
+def extract_entries(doc):
+    entries = []
+    for aff in doc.get('affected', []):
+        pkg = aff.get('package', {})
+        eco = (pkg.get('ecosystem') or '').lower()
+        name = (pkg.get('name') or '').lower()
+        if not eco or not name:
+            continue
+        entries.append((eco, name, {
+            'id': doc.get('id'),
+            'summary': doc.get('summary'),
+            'versions': aff.get('versions') or [],
+            'ranges': aff.get('ranges') or [],
+        }))
+    return entries
+
+
+def process_file(path):
     try:
-        with open(p, 'r') as fh:
-            d = json.load(fh)
-        out = []
-        for aff in d.get('affected', []):
-            pkg = aff.get('package', {})
-            eco = (pkg.get('ecosystem') or '').lower()
-            name = (pkg.get('name') or '').lower()
-            if not eco or not name:
-                continue
-            out.append((eco, name, {
-                'id': d.get('id'),
-                'summary': d.get('summary'),
-                'versions': aff.get('versions') or [],
-                'ranges': aff.get('ranges') or [],
-            }))
-        return out
+        doc = read_json_file(path)
+        return extract_entries(doc)
     except Exception:
         return []
 
@@ -43,7 +51,7 @@ with ThreadPoolExecutor(max_workers=workers) as ex:
             eco_map = index.setdefault(eco, {})
             eco_map.setdefault(name, []).append(entry)
 
-with gzip.open(OUT, 'wt') as gz:
+with gzip.open(OUT, 'wt', encoding='utf-8') as gz:
     json.dump(index, gz)
 
 print(f"Wrote index: {OUT} (ecosystems={len(index)})")
