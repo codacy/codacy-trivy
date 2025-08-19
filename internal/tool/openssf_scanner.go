@@ -118,34 +118,54 @@ func (s *OpenSSFScanner) scanSingleResult(result ptypes.Result, toolExecution co
 	}
 
 	for _, pkg := range result.Packages {
-		pkgType := ""
-		if pkg.Identifier.PURL != nil {
-			pkgType = strings.ToLower(pkg.Identifier.PURL.Type)
-		}
-		pkgNameLower := strings.ToLower(pkg.Name)
-
-		candidates := s.lookup(pkgType, pkgNameLower)
-		if len(candidates) == 0 {
-			continue
-		}
-		for _, cand := range candidates {
-			if s.versionMatches(pkg.Version, cand.Versions, cand.Ranges) {
-				lineNumber := s.findPackageLineNumber(toolExecution.SourceDir, result.Target, pkg.Name)
-				issue := codacy.Issue{
-					File:      result.Target,
-					Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", pkg.Name, pkg.Version, cand.Summary),
-					Line:      lineNumber,
-					PatternID: ruleIDMaliciousPackages,
-					SourceID:  cand.ID,
-				}
-				if s.shouldAnalyzeFile(toolExecution.Files, result.Target) {
-					out = append(out, issue)
-				}
-				break
-			}
+		if issues := s.checkPackage(pkg, result.Target, toolExecution); len(issues) > 0 {
+			out = append(out, issues...)
 		}
 	}
 	return out
+}
+
+// checkPackage checks a single package for malicious versions
+func (s *OpenSSFScanner) checkPackage(pkg ptypes.Package, target string, toolExecution codacy.ToolExecution) []codacy.Result {
+	pkgType := s.getPackageType(pkg)
+	pkgNameLower := strings.ToLower(pkg.Name)
+
+	candidates := s.lookup(pkgType, pkgNameLower)
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	for _, cand := range candidates {
+		if s.versionMatches(pkg.Version, cand.Versions, cand.Ranges) {
+			return s.createIssue(pkg, target, cand, toolExecution)
+		}
+	}
+	return nil
+}
+
+// getPackageType extracts the package type from PURL
+func (s *OpenSSFScanner) getPackageType(pkg ptypes.Package) string {
+	if pkg.Identifier.PURL != nil {
+		return strings.ToLower(pkg.Identifier.PURL.Type)
+	}
+	return ""
+}
+
+// createIssue creates a malicious package issue
+func (s *OpenSSFScanner) createIssue(pkg ptypes.Package, target string, cand osvShallow, toolExecution codacy.ToolExecution) []codacy.Result {
+	lineNumber := s.findPackageLineNumber(toolExecution.SourceDir, target, pkg.Name)
+	issue := codacy.Issue{
+		File:      target,
+		Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", pkg.Name, pkg.Version, cand.Summary),
+		Line:      lineNumber,
+		PatternID: ruleIDMaliciousPackages,
+		SourceID:  cand.ID,
+	}
+
+	if s.shouldAnalyzeFile(toolExecution.Files, target) {
+		return []codacy.Result{issue}
+	}
+	return nil
 }
 
 // scanKnownManifestsIfNoResults checks known manifests when Trivy produced no results
@@ -167,40 +187,65 @@ type npmPkg struct {
 }
 
 func (s *OpenSSFScanner) scanNpmManifest(sourceDir, relativePath string, knownFiles *[]string) []codacy.Result {
-	var out []codacy.Result
 	if !s.shouldAnalyzeFile(knownFiles, relativePath) {
-		return out
+		return nil
 	}
+
+	pj, err := s.parseNpmPackage(sourceDir, relativePath)
+	if err != nil {
+		return nil
+	}
+
+	return s.checkNpmDependencies(pj.Dependencies, relativePath)
+}
+
+// parseNpmPackage parses an npm package.json file
+func (s *OpenSSFScanner) parseNpmPackage(sourceDir, relativePath string) (*npmPkg, error) {
 	full := filepath.Join(sourceDir, relativePath)
 	data, err := os.ReadFile(full)
 	if err != nil {
-		return out
+		return nil, err
 	}
+
 	var pj npmPkg
 	if err := json.Unmarshal(data, &pj); err != nil {
-		return out
+		return nil, err
 	}
-	for name, ver := range pj.Dependencies {
-		pkgNameLower := strings.ToLower(name)
-		candidates := s.lookup("npm", pkgNameLower)
-		if len(candidates) == 0 {
-			continue
-		}
-		for _, cand := range candidates {
-			if s.versionMatches(ver, cand.Versions, cand.Ranges) {
-				issue := codacy.Issue{
-					File:      relativePath,
-					Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", name, ver, cand.Summary),
-					Line:      1,
-					PatternID: ruleIDMaliciousPackages,
-					SourceID:  cand.ID,
-				}
-				out = append(out, issue)
-				break
-			}
+	return &pj, nil
+}
+
+// checkNpmDependencies checks npm dependencies for malicious packages
+func (s *OpenSSFScanner) checkNpmDependencies(dependencies map[string]string, relativePath string) []codacy.Result {
+	var out []codacy.Result
+	for name, ver := range dependencies {
+		if issue := s.checkNpmDependency(name, ver, relativePath); issue != nil {
+			out = append(out, *issue)
 		}
 	}
 	return out
+}
+
+// checkNpmDependency checks a single npm dependency
+func (s *OpenSSFScanner) checkNpmDependency(name, ver, relativePath string) *codacy.Result {
+	pkgNameLower := strings.ToLower(name)
+	candidates := s.lookup("npm", pkgNameLower)
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	for _, cand := range candidates {
+		if s.versionMatches(ver, cand.Versions, cand.Ranges) {
+			issue := codacy.Issue{
+				File:      relativePath,
+				Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", name, ver, cand.Summary),
+				Line:      1,
+				PatternID: ruleIDMaliciousPackages,
+				SourceID:  cand.ID,
+			}
+			return &issue
+		}
+	}
+	return nil
 }
 
 func (s *OpenSSFScanner) lookup(ecosystemLower, pkgLower string) []osvShallow {
@@ -315,31 +360,7 @@ func (s *OpenSSFScanner) buildIndexFromFiles(files []string) error {
 		go func() {
 			defer wg.Done()
 			for p := range fileCh {
-				data, err := os.ReadFile(p)
-				if err != nil {
-					continue
-				}
-				var f osvFile
-				if err := json.Unmarshal(data, &f); err != nil {
-					log.Printf("Warning: Failed to parse OSV file %s: %v", p, err)
-					continue
-				}
-				for _, aff := range f.Affected {
-					eco := strings.ToLower(aff.Package.Ecosystem)
-					name := strings.ToLower(aff.Package.Name)
-					if eco == "" || name == "" {
-						continue
-					}
-					entry := osvShallow{ID: f.ID, Summary: f.Summary, Versions: aff.Versions, Ranges: aff.Ranges}
-					idxMu.Lock()
-					m, ok := s.index[eco]
-					if !ok {
-						m = make(map[string][]osvShallow)
-						s.index[eco] = m
-					}
-					m[name] = append(m[name], entry)
-					idxMu.Unlock()
-				}
+				s.processOSVFile(p, &idxMu)
 			}
 		}()
 	}
@@ -349,6 +370,49 @@ func (s *OpenSSFScanner) buildIndexFromFiles(files []string) error {
 	close(fileCh)
 	wg.Wait()
 	return nil
+}
+
+// processOSVFile processes a single OSV file and adds entries to the index
+func (s *OpenSSFScanner) processOSVFile(filePath string, idxMu *sync.Mutex) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return
+	}
+
+	var f osvFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		log.Printf("Warning: Failed to parse OSV file %s: %v", filePath, err)
+		return
+	}
+
+	s.addAffectedPackagesToIndex(f, idxMu)
+}
+
+// addAffectedPackagesToIndex adds affected packages from an OSV file to the index
+func (s *OpenSSFScanner) addAffectedPackagesToIndex(f osvFile, idxMu *sync.Mutex) {
+	for _, aff := range f.Affected {
+		eco := strings.ToLower(aff.Package.Ecosystem)
+		name := strings.ToLower(aff.Package.Name)
+		if eco == "" || name == "" {
+			continue
+		}
+
+		entry := osvShallow{ID: f.ID, Summary: f.Summary, Versions: aff.Versions, Ranges: aff.Ranges}
+		s.addEntryToIndex(eco, name, entry, idxMu)
+	}
+}
+
+// addEntryToIndex adds a single entry to the index with proper locking
+func (s *OpenSSFScanner) addEntryToIndex(eco, name string, entry osvShallow, idxMu *sync.Mutex) {
+	idxMu.Lock()
+	defer idxMu.Unlock()
+
+	m, ok := s.index[eco]
+	if !ok {
+		m = make(map[string][]osvShallow)
+		s.index[eco] = m
+	}
+	m[name] = append(m[name], entry)
 }
 
 // versionMatches checks if a version matches the malicious package criteria
@@ -373,17 +437,36 @@ func (s *OpenSSFScanner) checkSingleVersionRange(version string, events []struct
 	Fixed      string `json:"fixed,omitempty"`
 }) bool {
 	for _, event := range events {
-		if event.Introduced != "" && event.Fixed != "" {
-			if semver.Compare("v"+version, "v"+event.Introduced) >= 0 && semver.Compare("v"+version, "v"+event.Fixed) < 0 {
-				return true
-			}
-		} else if event.Introduced != "" {
-			if semver.Compare("v"+version, "v"+event.Introduced) >= 0 {
-				return true
-			}
+		if s.isVersionInRange(version, event) {
+			return true
 		}
 	}
 	return false
+}
+
+// isVersionInRange checks if a version falls within a specific event range
+func (s *OpenSSFScanner) isVersionInRange(version string, event struct {
+	Introduced string `json:"introduced,omitempty"`
+	Fixed      string `json:"fixed,omitempty"`
+}) bool {
+	if event.Introduced != "" && event.Fixed != "" {
+		return s.isVersionBetween(version, event.Introduced, event.Fixed)
+	}
+	if event.Introduced != "" {
+		return s.isVersionAtLeast(version, event.Introduced)
+	}
+	return false
+}
+
+// isVersionBetween checks if version is >= introduced and < fixed
+func (s *OpenSSFScanner) isVersionBetween(version, introduced, fixed string) bool {
+	return semver.Compare("v"+version, "v"+introduced) >= 0 &&
+		semver.Compare("v"+version, "v"+fixed) < 0
+}
+
+// isVersionAtLeast checks if version is >= introduced
+func (s *OpenSSFScanner) isVersionAtLeast(version, introduced string) bool {
+	return semver.Compare("v"+version, "v"+introduced) >= 0
 }
 
 func (s *OpenSSFScanner) findPackageLineNumber(sourceDir, fileName, pkgName string) int {
