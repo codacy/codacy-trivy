@@ -42,7 +42,7 @@ prefetch_trivy_cache_here() {
 build_branch_image() {
   echo "[build] Building branch image: $BRANCH_IMAGE"
   prefetch_trivy_cache_here
-  # Generate prebuilt index
+  # Generate prebuilt index (optional if present already)
   python3 scripts/build_openssf_index.py || true
   docker build -t "$BRANCH_IMAGE" --build-arg TRIVY_VERSION=0.65.0 .
 }
