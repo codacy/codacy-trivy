@@ -12,18 +12,35 @@ def read_json_file(path):
         return json.load(fh)
 
 
+def extract_package_info(pkg):
+    """Extract and validate package information."""
+    eco = (pkg.get('ecosystem') or '').lower()
+    name = (pkg.get('name') or '').lower()
+    return eco, name
+
+
+def create_entry(doc, aff):
+    """Create an entry tuple for the index."""
+    return (
+        doc.get('id'),
+        doc.get('summary'),
+        aff.get('versions') or [],
+        aff.get('ranges') or []
+    )
+
+
 def extract_entries(doc):
     entries = []
     for aff in doc.get('affected', []):
         pkg = aff.get('package', {})
-        eco = (pkg.get('ecosystem') or '').lower()
-        name = (pkg.get('name') or '').lower()
+        eco, name = extract_package_info(pkg)
         if eco and name:
+            entry_data = create_entry(doc, aff)
             entries.append((eco, name, {
-                'id': doc.get('id'),
-                'summary': doc.get('summary'),
-                'versions': aff.get('versions') or [],
-                'ranges': aff.get('ranges') or [],
+                'id': entry_data[0],
+                'summary': entry_data[1],
+                'versions': entry_data[2],
+                'ranges': entry_data[3],
             }))
     return entries
 
