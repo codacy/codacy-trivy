@@ -26,6 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/g
 
 # Generate the OpenSSF index during build
 COPY scripts/ scripts/
+COPY openssf-cache/ openssf-cache/
 RUN apk add --no-cache python3 && \
     python3 scripts/build_openssf_index.py
 
