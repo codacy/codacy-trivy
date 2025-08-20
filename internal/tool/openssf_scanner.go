@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -131,6 +132,11 @@ func (s *OpenSSFScanner) checkPackage(pkg ftypes.Package, target string, toolExe
 	pkgType := s.getPackageType(pkg)
 	pkgNameLower := strings.ToLower(pkg.Name)
 
+	// If we can't determine package type from PURL, try to infer it from the target file
+	if pkgType == "" {
+		pkgType = s.inferPackageTypeFromTarget(target)
+	}
+
 	candidates := s.lookup(pkgType, pkgNameLower)
 	if len(candidates) == 0 {
 		return nil
@@ -144,12 +150,52 @@ func (s *OpenSSFScanner) checkPackage(pkg ftypes.Package, target string, toolExe
 	return nil
 }
 
+// inferPackageTypeFromTarget tries to infer the package type from the target file path
+func (s *OpenSSFScanner) inferPackageTypeFromTarget(target string) string {
+	switch {
+	case strings.HasSuffix(target, "package.json"):
+		return "npm"
+	case strings.HasSuffix(target, "package-lock.json"):
+		return "npm"
+	case strings.HasSuffix(target, "yarn.lock"):
+		return "npm"
+	case strings.HasSuffix(target, "go.mod"):
+		return "golang"
+	case strings.HasSuffix(target, "requirements.txt"):
+		return "pypi"
+	case strings.HasSuffix(target, "Pipfile"):
+		return "pypi"
+	case strings.HasSuffix(target, "poetry.lock"):
+		return "pypi"
+	case strings.HasSuffix(target, "pom.xml"):
+		return "maven"
+	case strings.HasSuffix(target, "build.gradle"):
+		return "gradle"
+	default:
+		return ""
+	}
+}
+
 // getPackageType extracts the package type from PURL
 func (s *OpenSSFScanner) getPackageType(pkg ftypes.Package) string {
 	if pkg.Identifier.PURL != nil {
 		return strings.ToLower(pkg.Identifier.PURL.Type)
 	}
 	return ""
+}
+
+// getPackageDisplayName returns a display name for the package, handling nil PURLs
+func (s *OpenSSFScanner) getPackageDisplayName(pkg ftypes.Package) string {
+	if pkg.Identifier.PURL != nil {
+		// Use the same logic as the main tool for consistency
+		purlStripPkg := strings.TrimPrefix(pkg.Identifier.PURL.ToString(), "pkg:")
+		if ppp, err := url.PathUnescape(purlStripPkg); err == nil {
+			return ppp
+		}
+		return purlStripPkg
+	}
+	// Fallback to package name when PURL is not available
+	return pkg.Name
 }
 
 // createIssue creates a malicious package issue
@@ -197,7 +243,7 @@ func (s *OpenSSFScanner) scanNpmManifest(sourceDir, relativePath string, knownFi
 		return nil
 	}
 
-	return s.checkNpmDependencies(pj.Dependencies, relativePath)
+	return s.checkNpmDependencies(pj.Dependencies, sourceDir, relativePath)
 }
 
 // parseNpmPackage parses an npm package.json file
@@ -216,10 +262,10 @@ func (s *OpenSSFScanner) parseNpmPackage(sourceDir, relativePath string) (*npmPk
 }
 
 // checkNpmDependencies checks npm dependencies for malicious packages
-func (s *OpenSSFScanner) checkNpmDependencies(dependencies map[string]string, relativePath string) []codacy.Result {
+func (s *OpenSSFScanner) checkNpmDependencies(dependencies map[string]string, sourceDir, relativePath string) []codacy.Result {
 	var out []codacy.Result
 	for name, ver := range dependencies {
-		if issue := s.checkNpmDependency(name, ver, relativePath); issue != nil {
+		if issue := s.checkNpmDependency(name, ver, sourceDir, relativePath); issue != nil {
 			out = append(out, *issue)
 		}
 	}
@@ -227,7 +273,7 @@ func (s *OpenSSFScanner) checkNpmDependencies(dependencies map[string]string, re
 }
 
 // checkNpmDependency checks a single npm dependency
-func (s *OpenSSFScanner) checkNpmDependency(name, ver, relativePath string) *codacy.Issue {
+func (s *OpenSSFScanner) checkNpmDependency(name, ver, sourceDir, relativePath string) *codacy.Issue {
 	pkgNameLower := strings.ToLower(name)
 	candidates := s.lookup("npm", pkgNameLower)
 	if len(candidates) == 0 {
@@ -236,10 +282,11 @@ func (s *OpenSSFScanner) checkNpmDependency(name, ver, relativePath string) *cod
 
 	for _, cand := range candidates {
 		if s.versionMatches(ver, cand.Versions, cand.Ranges) {
+			lineNumber := s.findPackageLineNumber(sourceDir, relativePath, name)
 			issue := codacy.Issue{
 				File:      relativePath,
 				Message:   fmt.Sprintf("Malicious package detected: %s@%s - %s", name, ver, cand.Summary),
-				Line:      1,
+				Line:      lineNumber,
 				PatternID: ruleIDMaliciousPackages,
 				SourceID:  cand.ID,
 			}

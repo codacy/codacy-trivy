@@ -193,9 +193,11 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 		}
 
 		for _, vuln := range result.Vulnerabilities {
+			// Skip vulnerabilities without a valid PURL to avoid panic
 			if vuln.PkgIdentifier.PURL == nil {
 				continue
 			}
+
 			purl := vuln.PkgIdentifier.PURL.ToString()
 			// If the line number is not available, use the fallback.
 			if value, ok := lineNumberByPurl[purl]; !ok || value == 0 {
@@ -231,6 +233,9 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 
 	}
 
+	if toolExecution.Files == nil {
+		return mapIssuesWithoutLineNumber(issues), nil
+	}
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
 }
 
