@@ -159,12 +159,20 @@ main() {
 
   echo "repo,image,avg_ms,min_ms,max_ms,peak_mem_bytes" | tee bench_results.csv
 
+  local count=0
   for repo in "$BASE_DIR"/*; do
     [ -d "$repo" ] || continue
     base="$(basename "$repo")"
     [[ "$base" =~ $EXCLUDE_PATTERN ]] && { echo "[skip] $base"; continue; }
 
-    echo "[bench] Repo: $base (N=$ITERATIONS)"
+    # Only process first 10 repositories
+    ((count++))
+    if [ $count -gt 10 ]; then
+      echo "[limit] Reached 10 repositories limit, stopping"
+      break
+    fi
+
+    echo "[bench] Repo: $base (N=$ITERATIONS) [$count/10]"
 
     read -r avg min max peak < <(bench_repo_image "$MASTER_IMAGE" "$repo" "$ITERATIONS")
     echo "$base,master,$avg,$min,$max,$peak" | tee -a bench_results.csv

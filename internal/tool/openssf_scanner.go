@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
 	"golang.org/x/mod/semver"
@@ -126,7 +127,7 @@ func (s *OpenSSFScanner) scanSingleResult(result ptypes.Result, toolExecution co
 }
 
 // checkPackage checks a single package for malicious versions
-func (s *OpenSSFScanner) checkPackage(pkg ptypes.Package, target string, toolExecution codacy.ToolExecution) []codacy.Result {
+func (s *OpenSSFScanner) checkPackage(pkg ftypes.Package, target string, toolExecution codacy.ToolExecution) []codacy.Result {
 	pkgType := s.getPackageType(pkg)
 	pkgNameLower := strings.ToLower(pkg.Name)
 
@@ -144,7 +145,7 @@ func (s *OpenSSFScanner) checkPackage(pkg ptypes.Package, target string, toolExe
 }
 
 // getPackageType extracts the package type from PURL
-func (s *OpenSSFScanner) getPackageType(pkg ptypes.Package) string {
+func (s *OpenSSFScanner) getPackageType(pkg ftypes.Package) string {
 	if pkg.Identifier.PURL != nil {
 		return strings.ToLower(pkg.Identifier.PURL.Type)
 	}
@@ -152,7 +153,7 @@ func (s *OpenSSFScanner) getPackageType(pkg ptypes.Package) string {
 }
 
 // createIssue creates a malicious package issue
-func (s *OpenSSFScanner) createIssue(pkg ptypes.Package, target string, cand osvShallow, toolExecution codacy.ToolExecution) []codacy.Result {
+func (s *OpenSSFScanner) createIssue(pkg ftypes.Package, target string, cand osvShallow, toolExecution codacy.ToolExecution) []codacy.Result {
 	lineNumber := s.findPackageLineNumber(toolExecution.SourceDir, target, pkg.Name)
 	issue := codacy.Issue{
 		File:      target,
@@ -226,7 +227,7 @@ func (s *OpenSSFScanner) checkNpmDependencies(dependencies map[string]string, re
 }
 
 // checkNpmDependency checks a single npm dependency
-func (s *OpenSSFScanner) checkNpmDependency(name, ver, relativePath string) *codacy.Result {
+func (s *OpenSSFScanner) checkNpmDependency(name, ver, relativePath string) *codacy.Issue {
 	pkgNameLower := strings.ToLower(name)
 	candidates := s.lookup("npm", pkgNameLower)
 	if len(candidates) == 0 {
