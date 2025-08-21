@@ -3,7 +3,7 @@
     <file name="javascript/package-lock.json">
         <error
             source="malicious_packages"
-            line="1"
+            line="8"
             message="Malicious package detected: sdge-it-tdg-dynamicloadprofiles@1.0.1 - Malicious code in sdge-it-tdg-dynamicloadprofiles (npm)"
             severity="error"
         />
