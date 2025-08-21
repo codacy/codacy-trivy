@@ -1,0 +1,12 @@
+{
+  "name": "malicious-fixture-with-lock",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "sdge-it-tdg-dynamicloadprofiles": "1.0.1"
+  }
+}
+
+
+
+
