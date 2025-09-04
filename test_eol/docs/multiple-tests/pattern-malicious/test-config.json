@@ -1,0 +1,15 @@
+{
+  "files": [
+    "javascript/package.json"
+  ],
+  "tools": [
+    {
+      "name": "trivy",
+      "patterns": [
+        {
+          "patternId": "malicious_packages"
+        }
+      ]
+    }
+  ]
+}

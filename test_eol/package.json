@@ -1,0 +1,9 @@
+{
+  "name": "test-eol-packages",
+  "version": "1.0.0",
+  "dependencies": {
+    "python": "2.7.0",
+    "node": "12.0.0",
+    "php": "7.0.0"
+  }
+}

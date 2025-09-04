@@ -1,0 +1,14 @@
+{
+  "sourceDir": ".",
+  "patterns": [
+    {
+      "id": "eol_packages"
+    },
+    {
+      "id": "eol_packages_soon"
+    }
+  ],
+  "files": [
+    "package.json"
+  ]
+}

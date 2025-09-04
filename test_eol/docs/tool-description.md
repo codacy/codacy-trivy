@@ -1,0 +1,1 @@
+Trivy detects committed secrets, alerts of unsecure dependencies, and prevents cloud misconfigurations by analyzing Terraform, Cloudformation, Kubernetes, and other infrastructure-as-code languages. [Learn more](https://github.com/aquasecurity/trivy)

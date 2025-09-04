@@ -17,7 +17,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/secret"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
-	"github.com/aquasecurity/trivy/pkg/log"
+
 	tresult "github.com/aquasecurity/trivy/pkg/result"
 	tcdx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
@@ -36,6 +36,8 @@ const (
 	ruleIDVulnerabilityMedium   string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor    string = "vulnerability_minor"
 	ruleIDMaliciousPackages     string = "malicious_packages"
+	ruleIDEOLPackages           string = "eol_packages"
+	ruleIDEOLPackagesSoon       string = "eol_packages_soon"
 
 	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
@@ -64,36 +66,55 @@ type codacyTrivy struct {
 var _ codacy.Tool = (*codacyTrivy)(nil)
 
 func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution) ([]codacy.Result, error) {
+	fmt.Println("DEBUG: codacyTrivy.Run() called")
 	err := validateExecutionConfiguration(toolExecution)
 	if err != nil {
+		fmt.Printf("DEBUG: Validation failed: %v\n", err)
 		return nil, err
 	}
 	// The `quiet` field in Trivy configuration is not used by the runner.
 	// This is the only way to suppress Trivy logs.
-	log.InitLogger(false, true)
+	// log.InitLogger(false, true) // Removed - using standard log package
 
+	fmt.Println("DEBUG: About to call runBaseScan")
 	report, err := t.runBaseScan(ctx, toolExecution.SourceDir)
 	if err != nil {
+		fmt.Printf("DEBUG: runBaseScan failed: %v\n", err)
 		return nil, err
 	}
 
+	fmt.Println("DEBUG: About to call getSBOM")
 	sbom, err := t.getSBOM(ctx, report)
 	if err != nil {
+		fmt.Printf("DEBUG: getSBOM failed: %v\n", err)
 		return nil, err
 	}
 
+	fmt.Println("DEBUG: About to call getVulnerabilities")
 	vulnerabilityScanningIssues, err := t.getVulnerabilities(ctx, report, toolExecution)
 	if err != nil {
+		fmt.Printf("DEBUG: getVulnerabilities failed: %v\n", err)
 		return nil, err
 	}
+
+	fmt.Println("DEBUG: About to call runSecretScanning")
 
 	secretScanningIssues := t.runSecretScanning(toolExecution)
 
 	openssfScanner := NewOpenSSFScanner()
 	openssfScanningIssues := openssfScanner.ScanForMaliciousPackages(report, toolExecution)
 
+	fmt.Println("DEBUG: About to create XeolScanner")
+	fmt.Printf("DEBUG: report has %d results\n", len(report.Results))
+	fmt.Println("DEBUG: Creating XeolScanner")
+	xeolScanner := NewXeolScanner()
+	fmt.Println("DEBUG: Calling ScanForEOLPackages")
+	eolScanningIssues := xeolScanner.ScanForEOLPackages(report, toolExecution)
+	fmt.Printf("DEBUG: EOL scanning returned %d issues\n", len(eolScanningIssues))
+
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
 	allIssues = append(allIssues, openssfScanningIssues...)
+	allIssues = append(allIssues, eolScanningIssues...)
 	allIssues = append(allIssues, sbom)
 
 	return allIssues, nil
@@ -304,20 +325,28 @@ func (t codacyTrivy) runSecretScanning(toolExecution codacy.ToolExecution) []cod
 
 // validateExecutionConfiguration returns an error if the provided configuration has values that will prevent the tool from running properly.
 func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
+	fmt.Printf("DEBUG: validateExecutionConfiguration called with %d patterns\n", len(*toolExecution.Patterns))
 	if toolExecution.Patterns == nil || len(*toolExecution.Patterns) == 0 {
 		return &ToolError{msg: "Failed to configure Codacy Trivy: no patterns configured"}
 	}
 
+	// Log all pattern IDs for debugging
+	for i, pattern := range *toolExecution.Patterns {
+		fmt.Printf("DEBUG: Pattern %d: ID=%s\n", i, pattern.ID)
+	}
+
 	noSupportedPatterns := lo.NoneBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
-		return p.ID == ruleIDSecret || p.ID == ruleIDMaliciousPackages || lo.Contains(ruleIDsVulnerability, p.ID)
+		return p.ID == ruleIDSecret || p.ID == ruleIDMaliciousPackages || p.ID == ruleIDEOLPackages || p.ID == ruleIDEOLPackagesSoon || lo.Contains(ruleIDsVulnerability, p.ID)
 	})
 	if noSupportedPatterns {
 		patternIDs := lo.Map(*toolExecution.Patterns, func(p codacy.Pattern, _ int) string {
 			return p.ID
 		})
+		fmt.Printf("DEBUG: No supported patterns found. Provided: %v\n", patternIDs)
 		return &ToolError{msg: fmt.Sprintf("Failed to configure Codacy Trivy: configured patterns don't match existing rules (provided %v)", patternIDs)}
 	}
 
+	fmt.Println("DEBUG: Validation passed")
 	return nil
 }
 

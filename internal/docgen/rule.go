@@ -125,5 +125,25 @@ func trivyRules() Rules {
 			ScanType:    "SCA",
 			Enabled:     true,
 		},
+		{
+			ID:          "eol_packages",
+			Title:       "End-of-Life packages detection",
+			Description: "Detects packages that have reached their end-of-life (EOL) status, including deprecated packages and those no longer receiving security updates.",
+			Level:       "Error",
+			Category:    "Security",
+			SubCategory: "InsecureModulesLibraries",
+			ScanType:    "SCA",
+			Enabled:     true,
+		},
+		{
+			ID:          "eol_packages_soon",
+			Title:       "Soon-to-be-EOL packages detection",
+			Description: "Detects packages that are approaching their end-of-life (EOL) date within the next 6 months, allowing proactive migration planning.",
+			Level:       "High",
+			Category:    "Security",
+			SubCategory: "InsecureModulesLibraries",
+			ScanType:    "SCA",
+			Enabled:     true,
+		},
 	}
 }
