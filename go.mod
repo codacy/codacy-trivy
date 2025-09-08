@@ -12,7 +12,7 @@ require (
 	github.com/samber/lo v1.51.0
 	github.com/stretchr/testify v1.11.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/mod v0.27.0
+	golang.org/x/mod v0.28.0
 )
 
 require (
