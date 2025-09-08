@@ -131,6 +131,14 @@ func TestRun(t *testing.T) {
 						},
 						Relationship: ftypes.RelationshipDirect,
 					},
+					{
+						Identifier: ftypes.PkgIdentifier{
+							BOMRef: "no-purl",
+							UID:    "no-purl",
+							PURL:   nil,
+						},
+						Relationship: ftypes.RelationshipDirect,
+					},
 				},
 				Class: ptypes.ClassLangPkg,
 				Vulnerabilities: []ptypes.DetectedVulnerability{
@@ -155,6 +163,17 @@ func TestRun(t *testing.T) {
 						},
 						PkgIdentifier: ftypes.PkgIdentifier{
 							PURL: package1Purl,
+						},
+					},
+					// To be skipped since it doesn't have a PURL
+					{
+						VulnerabilityID: "no PURL",
+						Vulnerability: dbtypes.Vulnerability{
+							Severity: "HIGH",
+							Title:    "no PURL",
+						},
+						PkgIdentifier: ftypes.PkgIdentifier{
+							PURL: nil,
 						},
 					},
 					// Will generate a file error
@@ -328,6 +347,11 @@ func TestRun(t *testing.T) {
 						},
 					},
 					{
+						BOMRef:     "no-purl",
+						Type:       "library",
+						Properties: &[]cyclonedx.Property{},
+					},
+					{
 						BOMRef:     "pkg:type/@namespace/package-1@version+incompatible",
 						Type:       "library",
 						Properties: &[]cyclonedx.Property{},
@@ -352,9 +376,14 @@ func TestRun(t *testing.T) {
 					{
 						Ref: expectedRootComponentBOMRef,
 						Dependencies: &[]string{
+							"no-purl",
 							"pkg:type/@namespace/package-1@version+incompatible",
 							"pkg:type/@namespace/package-2@version+RC",
 						},
+					},
+					{
+						Ref:          "no-purl",
+						Dependencies: &[]string{},
 					},
 					{
 						Ref:          "pkg:type/@namespace/package-1@version+incompatible",

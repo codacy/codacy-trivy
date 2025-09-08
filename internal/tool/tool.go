@@ -177,6 +177,9 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 		// Make a map for faster lookup
 		lineNumberByPurl := map[string]int{}
 		for _, pkg := range result.Packages {
+			if pkg.Identifier.PURL == nil {
+				continue
+			}
 			lineNumber := 0
 			if len(pkg.Locations) > 0 {
 				lineNumber = pkg.Locations[0].StartLine
@@ -191,6 +194,9 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 		}
 
 		for _, vuln := range result.Vulnerabilities {
+			if vuln.PkgIdentifier.PURL == nil {
+				continue
+			}
 			purl := vuln.PkgIdentifier.PURL.ToString()
 			// If the line number is not available, use the fallback.
 			if value, ok := lineNumberByPurl[purl]; !ok || value == 0 {
