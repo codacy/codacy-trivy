@@ -2,7 +2,6 @@ package tool
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -259,8 +258,7 @@ func (t codacyTrivy) runSecretScanning(toolExecution codacy.ToolExecution) []cod
 	for _, f := range *toolExecution.Files {
 
 		filePath := path.Join(toolExecution.SourceDir, f)
-		content, err := os.ReadFile(filePath)
-
+		file, err := os.Open(filePath)
 		if err != nil {
 			results = append(
 				results,
@@ -270,9 +268,8 @@ func (t codacyTrivy) runSecretScanning(toolExecution codacy.ToolExecution) []cod
 				},
 			)
 		}
-		content = bytes.ReplaceAll(content, []byte("\r"), []byte(""))
 
-		secrets := scanner.Scan(secret.ScanArgs{FilePath: filePath, Content: content})
+		secrets := scanner.Scan(secret.ScanArgs{FilePath: filePath, Content: file})
 
 		for _, result := range secrets.Findings {
 			results = append(
