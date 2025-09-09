@@ -22,3 +22,10 @@ trivy
 
 #Ignore cursor AI rules
 .cursor/rules/codacy.mdc
+
+#Ignore codacy stuff
+.codacy/cli.sh
+.codacy/codacy.yaml
+
+#Ignore patterns.json
+docs/patterns.json
