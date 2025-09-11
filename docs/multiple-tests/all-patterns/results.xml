@@ -22,16 +22,16 @@
             severity="warning"
         />
         <error
-            source="vulnerability"
+            source="vulnerability_critical"
             line="2"
             message="Insecure dependency maven/org.apache.dolphinscheduler/dolphinscheduler-task-api@3.2.1 (CVE-2024-43202: Apache Dolphinscheduler Code Injection vulnerability) (update to 3.2.2)"
             severity="error"
         />
         <error
-            source="vulnerability"
+            source="vulnerability_high"
             line="3"
             message="Insecure dependency maven/org.apache.seatunnel/seatunnel@1.0.0 (CVE-2023-49198: Apache SeaTunnel SQL Injection vulnerability) (update to 1.0.1)"
-            severity="error"
+            severity="high"
         />
         <error
             source="vulnerability_medium"
