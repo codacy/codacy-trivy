@@ -30,7 +30,6 @@ import (
 
 const (
 	ruleIDSecret                string = "secret"
-	ruleIDVulnerability         string = "vulnerability"
 	ruleIDVulnerabilityCritical string = "vulnerability_critical"
 	ruleIDVulnerabilityHigh     string = "vulnerability_high"
 	ruleIDVulnerabilityMedium   string = "vulnerability_medium"
@@ -46,7 +45,7 @@ const (
 )
 
 // ruleIDsVulnerability contains IDs all rule (or pattern) IDs that find vulnerable dependencies.
-var ruleIDsVulnerability = []string{ruleIDVulnerability, ruleIDVulnerabilityCritical, ruleIDVulnerabilityHigh, ruleIDVulnerabilityMedium, ruleIDVulnerabilityMinor}
+var ruleIDsVulnerability = []string{ruleIDVulnerabilityCritical, ruleIDVulnerabilityHigh, ruleIDVulnerabilityMedium, ruleIDVulnerabilityMinor}
 
 // New creates a new instance of Codacy Trivy.
 func New() codacyTrivy {
@@ -162,11 +161,7 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 		return []codacy.Result{}, nil
 	}
 
-	ruleIDVulnerabilityPresent := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
-		return p.ID == ruleIDVulnerability
-	})
-
-	trivySeverities := getTrivySeveritiesFromPatterns(*toolExecution.Patterns, ruleIDVulnerabilityPresent)
+	trivySeverities := getTrivySeveritiesFromPatterns(*toolExecution.Patterns)
 	// This should never happen, given that we validate the patterns above. Still, it's a failsafe.
 	if len(trivySeverities) == 0 {
 		return nil, &ToolError{msg: fmt.Sprintf("Failed to run Codacy Trivy: vulnerability patterns did not produce severities (patterns %v)", *toolExecution.Patterns)}
@@ -212,7 +207,7 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 				fixedVersionMessage = "(no fix available)"
 			}
 
-			ruleID, err := getRuleIDFromTrivySeverity(vuln.Severity, ruleIDVulnerabilityPresent)
+			ruleID, err := getRuleIDFromTrivySeverity(vuln.Severity)
 			// This should not be possible since we filter out vulnerabilities with unknown severities. Still, it's a failsafe.
 			if err != nil {
 				return nil, err
@@ -316,22 +311,15 @@ func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
 
 // getRuleIDFromTrivySeverity converts from Trivy severity to Codacy's rule (or pattern) IDs.
 // If there is no match, an error is returned.
-func getRuleIDFromTrivySeverity(severity string, ruleIDVulnerabilityPresent bool) (string, error) {
+func getRuleIDFromTrivySeverity(severity string) (string, error) {
 	switch strings.ToLower(severity) {
 	case trivySeverityLow:
 		return ruleIDVulnerabilityMinor, nil
 	case trivySeverityMedium:
 		return ruleIDVulnerabilityMedium, nil
 	case trivySeverityHigh:
-		if ruleIDVulnerabilityPresent {
-			return ruleIDVulnerability, nil
-		}
 		return ruleIDVulnerabilityHigh, nil
-
 	case trivySeverityCritical:
-		if ruleIDVulnerabilityPresent {
-			return ruleIDVulnerability, nil
-		}
 		return ruleIDVulnerabilityCritical, nil
 
 	default:
@@ -341,20 +329,14 @@ func getRuleIDFromTrivySeverity(severity string, ruleIDVulnerabilityPresent bool
 
 // getTrivySeveritiesFromPatterns converts from Codacy's rule (or pattern) IDs to Trivy severities, for configuring a vulnerability scan.
 // If there is no match an empty slice is returned.
-func getTrivySeveritiesFromPatterns(patterns []codacy.Pattern, ruleIDVulnerabilityPresent bool) []dbTypes.Severity {
+func getTrivySeveritiesFromPatterns(patterns []codacy.Pattern) []dbTypes.Severity {
 	var trivySeverities []dbTypes.Severity
 	for _, pattern := range patterns {
 		switch strings.ToLower(pattern.ID) {
-		case ruleIDVulnerability:
-			trivySeverities = append(trivySeverities, dbTypes.SeverityCritical, dbTypes.SeverityHigh)
 		case ruleIDVulnerabilityCritical:
-			if !ruleIDVulnerabilityPresent {
-				trivySeverities = append(trivySeverities, dbTypes.SeverityCritical)
-			}
+			trivySeverities = append(trivySeverities, dbTypes.SeverityCritical)
 		case ruleIDVulnerabilityHigh:
-			if !ruleIDVulnerabilityPresent {
-				trivySeverities = append(trivySeverities, dbTypes.SeverityHigh)
-			}
+			trivySeverities = append(trivySeverities, dbTypes.SeverityHigh)
 		case ruleIDVulnerabilityMedium:
 			trivySeverities = append(trivySeverities, dbTypes.SeverityMedium)
 		case ruleIDVulnerabilityMinor:
