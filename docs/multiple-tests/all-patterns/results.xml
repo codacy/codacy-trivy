@@ -39,6 +39,8 @@
             message="Insecure dependency maven/org.apache.cxf/cxf-rt-transports-http@4.0.0 (CVE-2024-41172: apache: cxf: org.apache.cxf:cxf-rt-transports-http: unrestricted memory consumption in CXF HTTP clients) (update to 4.0.5)"
             severity="warning"
         />
+    </file>
+    <file name="javascript/package.json">
         <error
             source="malicious_packages"
             line="5"
