@@ -1,5 +1,3 @@
-// Package tool implements the Codacy Trivy tool, including the OpenSSF malicious
-// packages scanner and its prebuilt-index loading for performance.
 package tool
 
 import (
@@ -10,13 +8,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
+	"slices"
 	"strings"
-	"sync"
 
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
 	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	"github.com/samber/lo"
 	"golang.org/x/mod/semver"
 )
 
@@ -24,20 +22,6 @@ const (
 	openssfCacheDir  = "/dist/cache/openssf-malicious-packages"
 	openssfIndexPath = "/dist/cache/openssf-index.json.gz"
 )
-
-func getOpenSSFIndexPath() string {
-	if v := os.Getenv("OPENSSF_INDEX_PATH"); v != "" {
-		return v
-	}
-	return openssfIndexPath
-}
-
-func getOpenSSFCacheDir() string {
-	if v := os.Getenv("OPENSSF_CACHE_DIR"); v != "" {
-		return v
-	}
-	return openssfCacheDir
-}
 
 // Minimal OSV fields we care about
 type osvRange struct {
@@ -50,49 +34,42 @@ type osvRange struct {
 
 // Shallow entry stored in the index
 type osvShallow struct {
-	ID       string
-	Summary  string
-	Versions []string
-	Ranges   []osvRange
+	ID       string     `json:"id"`
+	Summary  string     `json:"summary"`
+	Versions []string   `json:"versions"`
+	Ranges   []osvRange `json:"ranges"`
 }
 
-// JSON structure used for decoding files
-type osvFile struct {
-	ID       string `json:"id"`
-	Summary  string `json:"summary"`
-	Affected []struct {
-		Package struct {
-			Name      string `json:"name"`
-			Ecosystem string `json:"ecosystem"`
-		} `json:"package"`
-		Versions []string   `json:"versions,omitempty"`
-		Ranges   []osvRange `json:"ranges,omitempty"`
-	} `json:"affected"`
-}
+// EcosystemIndex maps ecosystem names to package indices
+type EcosystemIndex map[string]PackageIndex
+
+// PackageIndex maps package names to their malicious entries
+type PackageIndex map[string][]osvShallow
 
 // OpenSSFScanner handles scanning for malicious packages using an indexed DB
 type OpenSSFScanner struct {
-	// index[ecosystemLower][packageLower] => list of entries
-	index      map[string]map[string][]osvShallow
-	indexBuilt bool
-	mu         sync.RWMutex
+	// index maps ecosystem names to package indices for efficient lookups
+	index EcosystemIndex
 }
 
 // NewOpenSSFScanner creates a new OpenSSF malicious packages scanner
 func NewOpenSSFScanner() *OpenSSFScanner {
 	return &OpenSSFScanner{
-		index: make(map[string]map[string][]osvShallow),
+		index: make(EcosystemIndex),
 	}
 }
 
 // ScanForMaliciousPackages scans the given report for malicious packages
 func (s *OpenSSFScanner) ScanForMaliciousPackages(report ptypes.Report, toolExecution codacy.ToolExecution) []codacy.Result {
 	var results []codacy.Result
-	if !s.isPatternEnabled(toolExecution.Patterns, ruleIDMaliciousPackages) {
+	maliciousPackagesEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
+		return p.ID == ruleIDMaliciousPackages
+	})
+	if !maliciousPackagesEnabled {
 		return results
 	}
 
-	if err := s.ensureIndexBuilt(); err != nil {
+	if err := s.ensureIndexLoaded(); err != nil {
 		log.Printf("Warning: Failed to load OpenSSF malicious packages database: %v", err)
 		return results
 	}
@@ -116,7 +93,7 @@ func (s *OpenSSFScanner) scanSingleResult(result ptypes.Result, toolExecution co
 	var out []codacy.Result
 	// If Trivy found no packages for a manifest, try parsing it directly
 	if len(result.Packages) == 0 && strings.HasSuffix(result.Target, "package.json") {
-		return s.scanNpmManifest(toolExecution.SourceDir, result.Target, toolExecution.Files)
+		return s.scanNpmManifest(toolExecution.SourceDir, result.Target)
 	}
 
 	for _, pkg := range result.Packages {
@@ -209,10 +186,7 @@ func (s *OpenSSFScanner) createIssue(pkg ftypes.Package, target string, cand osv
 		SourceID:  cand.ID,
 	}
 
-	if s.shouldAnalyzeFile(toolExecution.Files, target) {
-		return []codacy.Result{issue}
-	}
-	return nil
+	return []codacy.Result{issue}
 }
 
 // scanKnownManifestsIfNoResults checks known manifests when Trivy produced no results
@@ -223,27 +197,31 @@ func (s *OpenSSFScanner) scanKnownManifestsIfNoResults(report ptypes.Report, too
 	}
 	for _, f := range *toolExecution.Files {
 		if strings.HasSuffix(f, "package.json") {
-			out = append(out, s.scanNpmManifest(toolExecution.SourceDir, f, toolExecution.Files)...)
+			out = append(out, s.scanNpmManifest(toolExecution.SourceDir, f)...)
 		}
 	}
 	return out
 }
 
 type npmPkg struct {
-	Dependencies map[string]string `json:"dependencies"`
+	Dependencies         map[string]string `json:"dependencies"`
+	DevDependencies      map[string]string `json:"devDependencies"`
+	PeerDependencies     map[string]string `json:"peerDependencies"`
+	OptionalDependencies map[string]string `json:"optionalDependencies"`
 }
 
-func (s *OpenSSFScanner) scanNpmManifest(sourceDir, relativePath string, knownFiles *[]string) []codacy.Result {
-	if !s.shouldAnalyzeFile(knownFiles, relativePath) {
-		return nil
-	}
-
+func (s *OpenSSFScanner) scanNpmManifest(sourceDir, relativePath string) []codacy.Result {
 	pj, err := s.parseNpmPackage(sourceDir, relativePath)
 	if err != nil {
 		return nil
 	}
 
-	return s.checkNpmDependencies(pj.Dependencies, sourceDir, relativePath)
+	var allResults []codacy.Result
+	allResults = append(allResults, s.checkNpmDependencies(pj.Dependencies, sourceDir, relativePath)...)
+	allResults = append(allResults, s.checkNpmDependencies(pj.DevDependencies, sourceDir, relativePath)...)
+	allResults = append(allResults, s.checkNpmDependencies(pj.PeerDependencies, sourceDir, relativePath)...)
+	allResults = append(allResults, s.checkNpmDependencies(pj.OptionalDependencies, sourceDir, relativePath)...)
+	return allResults
 }
 
 // parseNpmPackage parses an npm package.json file
@@ -264,6 +242,9 @@ func (s *OpenSSFScanner) parseNpmPackage(sourceDir, relativePath string) (*npmPk
 // checkNpmDependencies checks npm dependencies for malicious packages
 func (s *OpenSSFScanner) checkNpmDependencies(dependencies map[string]string, sourceDir, relativePath string) []codacy.Result {
 	var out []codacy.Result
+	if dependencies == nil {
+		return out
+	}
 	for name, ver := range dependencies {
 		if issue := s.checkNpmDependency(name, ver, sourceDir, relativePath); issue != nil {
 			out = append(out, *issue)
@@ -297,8 +278,6 @@ func (s *OpenSSFScanner) checkNpmDependency(name, ver, sourceDir, relativePath s
 }
 
 func (s *OpenSSFScanner) lookup(ecosystemLower, pkgLower string) []osvShallow {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	pkgs := s.index[ecosystemLower]
 	if pkgs == nil {
 		return nil
@@ -306,45 +285,21 @@ func (s *OpenSSFScanner) lookup(ecosystemLower, pkgLower string) []osvShallow {
 	return pkgs[pkgLower]
 }
 
-// ensureIndexBuilt builds the in-memory index once with concurrency
-func (s *OpenSSFScanner) ensureIndexBuilt() error {
-	s.mu.RLock()
-	if s.indexBuilt {
-		s.mu.RUnlock()
-		return nil
-	}
-	s.mu.RUnlock()
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.indexBuilt {
-		return nil
-	}
-
+// ensureIndexLoaded loads the prebuilt index
+func (s *OpenSSFScanner) ensureIndexLoaded() error {
 	loaded, err := s.tryLoadPrebuiltIndex()
 	if err != nil {
 		return err
 	}
-	if loaded {
-		s.indexBuilt = true
-		return nil
+	if !loaded {
+		return fmt.Errorf("failed to load prebuilt OpenSSF index")
 	}
-
-	files, err := s.collectOSVFiles()
-	if err != nil {
-		return err
-	}
-	if err := s.buildIndexFromFiles(files); err != nil {
-		return err
-	}
-
-	s.indexBuilt = true
 	return nil
 }
 
 // tryLoadPrebuiltIndex attempts to load the gzipped prebuilt index
 func (s *OpenSSFScanner) tryLoadPrebuiltIndex() (bool, error) {
-	indexPath := getOpenSSFIndexPath()
+	indexPath := openssfIndexPath
 	fi, err := os.Stat(indexPath)
 	if err != nil || fi.IsDir() {
 		return false, nil
@@ -360,7 +315,7 @@ func (s *OpenSSFScanner) tryLoadPrebuiltIndex() (bool, error) {
 	}
 	defer gz.Close()
 	dec := json.NewDecoder(gz)
-	var idx map[string]map[string][]osvShallow
+	var idx EcosystemIndex
 	if err := dec.Decode(&idx); err != nil {
 		return false, nil
 	}
@@ -368,113 +323,14 @@ func (s *OpenSSFScanner) tryLoadPrebuiltIndex() (bool, error) {
 	return true, nil
 }
 
-// collectOSVFiles walks the cache directory and returns all JSON files
-func (s *OpenSSFScanner) collectOSVFiles() ([]string, error) {
-	var files []string
-	root := getOpenSSFCacheDir()
-	if _, err := os.Stat(root); err != nil {
-		// If the directory does not exist, return empty list (we rely on prebuilt index)
-		return files, nil
-	}
-	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".json") {
-			files = append(files, path)
-		}
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("walk openssf dir: %w", err)
-	}
-	return files, nil
-}
-
-// buildIndexFromFiles parses the OSV files concurrently and fills the index
-func (s *OpenSSFScanner) buildIndexFromFiles(files []string) error {
-	workers := runtime.GOMAXPROCS(0)
-	if workers < 4 {
-		workers = 4
-	}
-	fileCh := make(chan string, 1024)
-	var wg sync.WaitGroup
-	var idxMu sync.Mutex
-
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for p := range fileCh {
-				s.processOSVFile(p, &idxMu)
-			}
-		}()
-	}
-	for _, p := range files {
-		fileCh <- p
-	}
-	close(fileCh)
-	wg.Wait()
-	return nil
-}
-
-// processOSVFile processes a single OSV file and adds entries to the index
-func (s *OpenSSFScanner) processOSVFile(filePath string, idxMu *sync.Mutex) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return
-	}
-
-	var f osvFile
-	if err := json.Unmarshal(data, &f); err != nil {
-		log.Printf("Warning: Failed to parse OSV file %s: %v", filePath, err)
-		return
-	}
-
-	s.addAffectedPackagesToIndex(f, idxMu)
-}
-
-// addAffectedPackagesToIndex adds affected packages from an OSV file to the index
-func (s *OpenSSFScanner) addAffectedPackagesToIndex(f osvFile, idxMu *sync.Mutex) {
-	for _, aff := range f.Affected {
-		eco := strings.ToLower(aff.Package.Ecosystem)
-		name := strings.ToLower(aff.Package.Name)
-		if eco == "" || name == "" {
-			continue
-		}
-
-		entry := osvShallow{ID: f.ID, Summary: f.Summary, Versions: aff.Versions, Ranges: aff.Ranges}
-		s.addEntryToIndex(eco, name, entry, idxMu)
-	}
-}
-
-// addEntryToIndex adds a single entry to the index with proper locking
-func (s *OpenSSFScanner) addEntryToIndex(eco, name string, entry osvShallow, idxMu *sync.Mutex) {
-	idxMu.Lock()
-	defer idxMu.Unlock()
-
-	m, ok := s.index[eco]
-	if !ok {
-		m = make(map[string][]osvShallow)
-		s.index[eco] = m
-	}
-	m[name] = append(m[name], entry)
-}
-
 // versionMatches checks if a version matches the malicious package criteria
 func (s *OpenSSFScanner) versionMatches(version string, affectedVersions []string, ranges []osvRange) bool {
-	for _, affectedVersion := range affectedVersions {
-		if version == affectedVersion {
-			return true
-		}
+	if slices.Contains(affectedVersions, version) {
+		return true
 	}
 	for _, versionRange := range ranges {
-		if versionRange.Type == "SEMVER" || versionRange.Type == "ECOSYSTEM" {
-			if s.checkSingleVersionRange(version, versionRange.Events) {
-				return true
-			}
+		if (versionRange.Type == "SEMVER" || versionRange.Type == "ECOSYSTEM") && s.checkSingleVersionRange(version, versionRange.Events) {
+			return true
 		}
 	}
 	return false
@@ -508,39 +364,34 @@ func (s *OpenSSFScanner) isVersionInRange(version string, event struct {
 
 // isVersionBetween checks if version is >= introduced and < fixed
 func (s *OpenSSFScanner) isVersionBetween(version, introduced, fixed string) bool {
-	return semver.Compare("v"+version, "v"+introduced) >= 0 &&
-		semver.Compare("v"+version, "v"+fixed) < 0
+	return s.semverCompare(version, introduced) >= 0 &&
+		s.semverCompare(version, fixed) < 0
 }
 
 // isVersionAtLeast checks if version is >= introduced
 func (s *OpenSSFScanner) isVersionAtLeast(version, introduced string) bool {
-	return semver.Compare("v"+version, "v"+introduced) >= 0
+	return s.semverCompare(version, introduced) >= 0
+}
+
+// semverCompare compares two versions, handling both with and without "v" prefix
+func (s *OpenSSFScanner) semverCompare(v1, v2 string) int {
+	// Ensure both versions have consistent prefix handling
+	v1Normalized := s.normalizeVersion(v1)
+	v2Normalized := s.normalizeVersion(v2)
+	return semver.Compare(v1Normalized, v2Normalized)
+}
+
+// normalizeVersion ensures version has "v" prefix for semver.Compare
+func (s *OpenSSFScanner) normalizeVersion(version string) string {
+	if version == "" {
+		return "v0.0.0"
+	}
+	if !strings.HasPrefix(version, "v") {
+		return "v" + version
+	}
+	return version
 }
 
 func (s *OpenSSFScanner) findPackageLineNumber(sourceDir, fileName, pkgName string) int {
 	return fallbackSearchForLineNumber(sourceDir, fileName, pkgName)
-}
-
-func (s *OpenSSFScanner) isPatternEnabled(patterns *[]codacy.Pattern, patternID string) bool {
-	if patterns == nil {
-		return false
-	}
-	for _, pattern := range *patterns {
-		if pattern.ID == patternID {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *OpenSSFScanner) shouldAnalyzeFile(knownFiles *[]string, fileName string) bool {
-	if knownFiles == nil {
-		return true
-	}
-	for _, file := range *knownFiles {
-		if file == fileName {
-			return true
-		}
-	}
-	return false
 }

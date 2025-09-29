@@ -39,5 +39,11 @@
             message="Insecure dependency maven/org.apache.cxf/cxf-rt-transports-http@4.0.0 (CVE-2024-41172: apache: cxf: org.apache.cxf:cxf-rt-transports-http: unrestricted memory consumption in CXF HTTP clients) (update to 4.0.5)"
             severity="warning"
         />
+        <error
+            source="malicious_packages"
+            line="5"
+            message="Malicious package detected: commitlint-pm2-proxima-dotenv-safe@1.0.0 - Malicious code in commitlint-pm2-proxima-dotenv-safe (npm)"
+            severity="error"
+        />
     </file>
 </checkstyle>
