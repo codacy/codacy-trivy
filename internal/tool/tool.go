@@ -33,6 +33,7 @@ const (
 	ruleIDVulnerabilityHigh     string = "vulnerability_high"
 	ruleIDVulnerabilityMedium   string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor    string = "vulnerability_minor"
+	ruleIDMaliciousPackages     string = "malicious_packages"
 
 	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
@@ -86,7 +87,11 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 
 	secretScanningIssues := t.runSecretScanning(toolExecution)
 
+	openssfScanner := NewOpenSSFScanner()
+	openssfScanningIssues := openssfScanner.ScanForMaliciousPackages(report, toolExecution)
+
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
+	allIssues = append(allIssues, openssfScanningIssues...)
 	allIssues = append(allIssues, sbom)
 
 	return allIssues, nil
@@ -188,6 +193,11 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 		}
 
 		for _, vuln := range result.Vulnerabilities {
+			// Skip vulnerabilities without a valid PURL to avoid panic
+			// This can happen when Trivy detects vulnerabilities in packages that don't have
+			// proper package identifiers (e.g., custom packages, local dependencies, or
+			// packages with malformed metadata). Without a PURL, we cannot reliably map
+			// the vulnerability to a specific package location in the source code.
 			if vuln.PkgIdentifier.PURL == nil {
 				continue
 			}
@@ -226,6 +236,16 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 
 	}
 
+	// Handle case where toolExecution.Files is nil
+	// This can happen when:
+	// 1. The tool is run in "scan all files" mode without specific file filtering
+	// 2. The Codacy platform doesn't provide a file list (e.g., for certain analysis modes)
+	// 3. The tool execution configuration doesn't specify target files
+	// In these cases, we return all issues without file filtering since we can't determine
+	// which files should be excluded from the analysis.
+	if toolExecution.Files == nil {
+		return mapIssuesWithoutLineNumber(issues), nil
+	}
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
 }
 
@@ -294,7 +314,7 @@ func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
 	}
 
 	noSupportedPatterns := lo.NoneBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
-		return p.ID == ruleIDSecret || lo.Contains(ruleIDsVulnerability, p.ID)
+		return p.ID == ruleIDSecret || p.ID == ruleIDMaliciousPackages || lo.Contains(ruleIDsVulnerability, p.ID)
 	})
 	if noSupportedPatterns {
 		patternIDs := lo.Map(*toolExecution.Patterns, func(p codacy.Pattern, _ int) string {

@@ -1,0 +1,46 @@
+{
+  "name": "trivy",
+  "version": "dev",
+  "patterns": [
+    {
+      "patternId": "secret",
+      "category": "Security",
+      "subcategory": "Cryptography",
+      "scanType": "Secrets",
+      "level": "Error",
+      "enabled": true
+    },
+    {
+      "patternId": "vulnerability",
+      "category": "Security",
+      "subcategory": "InsecureModulesLibraries",
+      "scanType": "SCA",
+      "level": "Error",
+      "enabled": true
+    },
+    {
+      "patternId": "vulnerability_medium",
+      "category": "Security",
+      "subcategory": "InsecureModulesLibraries",
+      "scanType": "SCA",
+      "level": "Warning",
+      "enabled": true
+    },
+    {
+      "patternId": "vulnerability_minor",
+      "category": "Security",
+      "subcategory": "InsecureModulesLibraries",
+      "scanType": "SCA",
+      "level": "Info",
+      "enabled": true
+    },
+    {
+      "patternId": "malicious_packages",
+      "category": "Security",
+      "subcategory": "InsecureModulesLibraries",
+      "scanType": "SCA",
+      "level": "Error",
+      "enabled": true
+    }
+  ]
+}

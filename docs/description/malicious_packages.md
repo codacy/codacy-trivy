@@ -1,0 +1,2 @@
+## Malicious packages detection
+Detects malicious packages identified in the OpenSSF Malicious Packages database, including typosquatting attacks, dependency confusion, and packages with malicious payloads.

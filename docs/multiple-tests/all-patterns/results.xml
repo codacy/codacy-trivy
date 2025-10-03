@@ -40,4 +40,12 @@
             severity="warning"
         />
     </file>
+    <file name="javascript/package.json">
+        <error
+            source="malicious_packages"
+            line="5"
+            message="Malicious package detected: commitlint-pm2-proxima-dotenv-safe@1.0.0 - Malicious code in commitlint-pm2-proxima-dotenv-safe (npm)"
+            severity="error"
+        />
+    </file>
 </checkstyle>
