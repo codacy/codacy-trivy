@@ -192,7 +192,7 @@ func (s *OpenSSFScanner) createIssue(pkg ftypes.Package, target string, cand osv
 // scanKnownManifestsIfNoResults checks known manifests when Trivy produced no results
 func (s *OpenSSFScanner) scanKnownManifestsIfNoResults(report ptypes.Report, toolExecution codacy.ToolExecution) []codacy.Result {
 	var out []codacy.Result
-	if len(report.Results) != 0 || toolExecution.Files == nil {
+	if toolExecution.Files == nil {
 		return out
 	}
 	for _, f := range *toolExecution.Files {
