@@ -68,7 +68,10 @@ func TestRun(t *testing.T) {
 				ID: ruleIDSecret,
 			},
 			{
-				ID: ruleIDVulnerability,
+				ID: ruleIDVulnerabilityCritical,
+			},
+			{
+				ID: ruleIDVulnerabilityHigh,
 			},
 			{
 				ID: "unknown",
@@ -131,6 +134,14 @@ func TestRun(t *testing.T) {
 						},
 						Relationship: ftypes.RelationshipDirect,
 					},
+					{
+						Identifier: ftypes.PkgIdentifier{
+							BOMRef: "no-purl",
+							UID:    "no-purl",
+							PURL:   nil,
+						},
+						Relationship: ftypes.RelationshipDirect,
+					},
 				},
 				Class: ptypes.ClassLangPkg,
 				Vulnerabilities: []ptypes.DetectedVulnerability{
@@ -155,6 +166,17 @@ func TestRun(t *testing.T) {
 						},
 						PkgIdentifier: ftypes.PkgIdentifier{
 							PURL: package1Purl,
+						},
+					},
+					// To be skipped since it doesn't have a PURL
+					{
+						VulnerabilityID: "no PURL",
+						Vulnerability: dbtypes.Vulnerability{
+							Severity: "HIGH",
+							Title:    "no PURL",
+						},
+						PkgIdentifier: ftypes.PkgIdentifier{
+							PURL: nil,
 						},
 					},
 					// Will generate a file error
@@ -226,14 +248,14 @@ func TestRun(t *testing.T) {
 			{
 				File:      fileName,
 				Line:      1,
-				PatternID: ruleIDVulnerability,
+				PatternID: ruleIDVulnerabilityCritical,
 				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id: vuln title) (update to vuln fixed)",
 				SourceID:  "vuln id",
 			},
 			{
 				File:      fileName,
 				Line:      1,
-				PatternID: ruleIDVulnerability,
+				PatternID: ruleIDVulnerabilityHigh,
 				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id no fixed version: vuln no fixed version) (no fix available)",
 				SourceID:  "vuln id no fixed version",
 			},
@@ -328,6 +350,11 @@ func TestRun(t *testing.T) {
 						},
 					},
 					{
+						BOMRef:     "no-purl",
+						Type:       "library",
+						Properties: &[]cyclonedx.Property{},
+					},
+					{
 						BOMRef:     "pkg:type/@namespace/package-1@version+incompatible",
 						Type:       "library",
 						Properties: &[]cyclonedx.Property{},
@@ -352,9 +379,14 @@ func TestRun(t *testing.T) {
 					{
 						Ref: expectedRootComponentBOMRef,
 						Dependencies: &[]string{
+							"no-purl",
 							"pkg:type/@namespace/package-1@version+incompatible",
 							"pkg:type/@namespace/package-2@version+RC",
 						},
+					},
+					{
+						Ref:          "no-purl",
+						Dependencies: &[]string{},
 					},
 					{
 						Ref:          "pkg:type/@namespace/package-1@version+incompatible",
@@ -440,7 +472,7 @@ func TestRunNewRunnerError(t *testing.T) {
 	toolExecution := codacy.ToolExecution{
 		Patterns: &[]codacy.Pattern{
 			{
-				ID: ruleIDVulnerability,
+				ID: ruleIDVulnerabilityHigh,
 			},
 		},
 		Files: &[]string{file1, file2},
@@ -475,7 +507,7 @@ func TestRunScanFilesystemError(t *testing.T) {
 				ID: ruleIDSecret,
 			},
 			{
-				ID: ruleIDVulnerability,
+				ID: ruleIDVulnerabilityCritical,
 			},
 		},
 		SourceDir: sourceDir,
@@ -629,50 +661,7 @@ func TestGetRuleIdFromTrivySeverity(t *testing.T) {
 	for testName, testData := range testSet {
 		t.Run(testName, func(t *testing.T) {
 			// Act
-			ruleID, err := getRuleIDFromTrivySeverity(testData.trivySeverity, false)
-
-			// Assert
-			assert.Equal(t, testData.expectedRuleID, ruleID)
-			assert.Equal(t, testData.expectedErr, err)
-		})
-	}
-}
-
-func TestGetRuleIdFromTrivySeverityWithDeprecatedPattern(t *testing.T) {
-	// Arrange
-	type testData struct {
-		trivySeverity  string
-		expectedRuleID string
-		expectedErr    error
-	}
-
-	testSet := map[string]testData{
-		"low": {
-			trivySeverity:  "LoW",
-			expectedRuleID: ruleIDVulnerabilityMinor,
-		},
-		"medium": {
-			trivySeverity:  "medium",
-			expectedRuleID: ruleIDVulnerabilityMedium,
-		},
-		"high": {
-			trivySeverity:  "hiGh",
-			expectedRuleID: ruleIDVulnerability,
-		},
-		"critical": {
-			trivySeverity:  "CrItIcAl",
-			expectedRuleID: ruleIDVulnerability,
-		},
-		"unknown": {
-			trivySeverity: "unknown",
-			expectedErr:   &ToolError{msg: "Failed to run Codacy Trivy: unexpected Trivy severity unknown"},
-		},
-	}
-
-	for testName, testData := range testSet {
-		t.Run(testName, func(t *testing.T) {
-			// Act
-			ruleID, err := getRuleIDFromTrivySeverity(testData.trivySeverity, true)
+			ruleID, err := getRuleIDFromTrivySeverity(testData.trivySeverity)
 
 			// Assert
 			assert.Equal(t, testData.expectedRuleID, ruleID)
@@ -693,30 +682,7 @@ func TestGetTrivySeveritiesFromPatterns(t *testing.T) {
 	}
 
 	// Act
-	result := getTrivySeveritiesFromPatterns(patterns, false)
-
-	// Assert
-	expectedSeverities := []dbtypes.Severity{
-		dbtypes.SeverityCritical,
-		dbtypes.SeverityHigh,
-		dbtypes.SeverityMedium,
-		dbtypes.SeverityLow,
-	}
-	assert.ElementsMatch(t, expectedSeverities, result)
-}
-
-func TestGetTrivySeveritiesFromPatternsWithDeprecatedPattern(t *testing.T) {
-	// Assert
-	patterns := []codacy.Pattern{
-		{ID: ruleIDVulnerability},
-		{ID: ruleIDVulnerabilityMedium},
-		{ID: ruleIDVulnerabilityMinor},
-		{ID: ruleIDSecret},
-		{ID: "Unknown"},
-	}
-
-	// Act
-	result := getTrivySeveritiesFromPatterns(patterns, true)
+	result := getTrivySeveritiesFromPatterns(patterns)
 
 	// Assert
 	expectedSeverities := []dbtypes.Severity{
