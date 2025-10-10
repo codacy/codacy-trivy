@@ -3,7 +3,7 @@ module github.com/codacy/codacy-trivy
 go 1.25
 
 require (
-	github.com/CycloneDX/cyclonedx-go v0.9.2
+	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/aquasecurity/trivy v0.67.0 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20250929072116-eba1ced2340a
 	github.com/codacy/codacy-engine-golang-seed/v6 v6.4.0
