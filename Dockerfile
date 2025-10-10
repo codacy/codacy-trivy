@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine as builder
+FROM golang:1.25-alpine as builder
 
 ARG TRIVY_VERSION=dev
 ENV TRIVY_VERSION=$TRIVY_VERSION
@@ -8,6 +8,7 @@ WORKDIR /src
 COPY go.mod go.mod
 COPY go.sum go.sum
 
+RUN go env -w GOEXPERIMENT=jsonv2
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 RUN go mod verify

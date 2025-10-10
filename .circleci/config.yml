@@ -26,6 +26,7 @@ workflows:
       - codacy/shell:
           name: generate_and_test
           cmd: |
+            go env -w GOEXPERIMENT=jsonv2
             go generate ./...
             go test ./...
           requires:
