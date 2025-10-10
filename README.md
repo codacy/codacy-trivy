@@ -2,6 +2,9 @@
 
 This is the docker engine we use at Codacy to have [Trivy](https://github.com/aquasecurity/trivy) support.
 
+> [!IMPORTANT]
+> For local development, please run `go env -w GOEXPERIMENT=jsonv2`, since the current Trivy library depends on experimental go modules.
+
 ## Usage
 
 You can create the docker by doing:
