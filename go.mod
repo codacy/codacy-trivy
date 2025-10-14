@@ -6,13 +6,13 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/aquasecurity/trivy v0.67.2 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20250929072116-eba1ced2340a
-	github.com/codacy/codacy-engine-golang-seed/v6 v6.4.0
+	github.com/codacy/codacy-engine-golang-seed/v6 v6.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/package-url/packageurl-go v0.1.3
-	github.com/samber/lo v1.51.0
+	github.com/samber/lo v1.52.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
-	golang.org/x/mod v0.28.0
+	golang.org/x/mod v0.29.0
 )
 
 require (
@@ -381,7 +381,7 @@ require (
 	golang.org/x/term v0.35.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/tools v0.37.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
 	google.golang.org/api v0.248.0 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
