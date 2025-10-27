@@ -5,7 +5,7 @@ updates:
   - package-ecosystem: gomod
     directory: /
     exclude-paths:
-      - docs/multiple-tests
+      - docs/multiple-tests/**
     schedule:
       interval: weekly
       day: monday
