@@ -36,8 +36,10 @@ malicious entries for a package grouped together for efficient scanning.
 import os, json, gzip
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-BASE = os.environ.get('OPENSSF_OSV_DIR', 'openssf-cache/osv')
-OUT = os.environ.get('OPENSSF_INDEX_OUT', 'openssf-index.json.gz')
+# We are ignoring withdrawn packages.
+# See https://github.com/ossf/malicious-packages/tree/main/osv/withdrawn
+BASE = os.environ.get('OPENSSF_OSV_MALICIOUS_DIR', 'openssf-malicious-packages/osv/malicious')
+OUT = os.environ.get('OPENSSF_INDEX_OUT', 'openssf-malicious-packages/openssf-malicious-packages-index.json.gz')
 
 def read_json_file(path):
     with open(path, 'r', encoding='utf-8') as fh:
@@ -45,7 +47,7 @@ def read_json_file(path):
 
 
 def extract_package_info(pkg):
-    """Extract and validate package information."""
+    """Extract package information."""
     eco = (pkg.get('ecosystem') or '').lower()
     name = (pkg.get('name') or '').lower()
     return eco, name
@@ -85,6 +87,7 @@ def process_file(path):
         return []
 
 
+# Get all malicious package files to work on them in parallel.
 files = []
 for root, _, fns in os.walk(BASE):
     for fn in fns:
@@ -94,7 +97,7 @@ for root, _, fns in os.walk(BASE):
 index = {}
 workers = min(32, os.cpu_count() or 8)
 with ThreadPoolExecutor(max_workers=workers) as ex:
-    futs = [ex.submit(process_file, p) for p in files]
+    futs = [ex.submit(process_file, f) for f in files]
     for fut in as_completed(futs):
         for eco, name, entry in fut.result():
             eco_map = index.setdefault(eco, {})

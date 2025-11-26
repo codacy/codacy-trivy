@@ -12,13 +12,13 @@ references:
       curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.66.0
       mkdir cache
       ./trivy --cache-dir ./cache image --download-db-only
-      # Download OpenSSF malicious packages database
-      mkdir -p openssf-cache
-      echo "Downloading OpenSSF malicious packages database..."
-      curl -sfL https://api.github.com/repos/ossf/malicious-packages/tarball/main | tar -xz --strip-components=1 -C openssf-cache
-      # Copy OSV files to the expected cache location
-      mkdir -p openssf-cache/osv
-      find openssf-cache -name "*.json" -path "*/osv/*" -exec cp {} openssf-cache/osv/ \;
+
+  build_openssf_malicious_package_index: &build_openssf_malicious_package_index
+    persist_to_workspace: true
+    cmd: |
+      mkdir openssf-malicious-packages
+      curl -sfL https://api.github.com/repos/ossf/malicious-packages/tarball/main | tar -xz --strip-components=1 -C openssf-malicious-packages
+      python3 scripts/build_openssf_index.py
 
   build_and_publish_docker: &build_and_publish_docker
     persist_to_workspace: true
@@ -44,10 +44,16 @@ workflows:
           requires:
             - generate_and_test
       - codacy/shell:
+          <<: *build_openssf_malicious_package_index
+          name: build_openssf_malicious_package_index
+          requires:
+            - generate_and_test
+      - codacy/shell:
           <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
             - install_trivy_and_download_dbs
+            - build_openssf_malicious_package_index
       - codacy_plugins_test/run:
           name: plugins_test
           run_multiple_tests: true
@@ -92,10 +98,16 @@ workflows:
           requires:
             - generate_and_test
       - codacy/shell:
+          <<: *build_openssf_malicious_package_index
+          name: build_openssf_malicious_package_index
+          requires:
+            - generate_and_test
+      - codacy/shell:
           <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
             - install_trivy_and_download_dbs
+            - build_openssf_malicious_package_index
       - codacy/publish_docker:
           name: publish_dockerhub
           context: CodacyDocker

@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine as builder
+FROM golang:1.25-alpine AS builder
 
 ARG TRIVY_VERSION=dev
 ENV TRIVY_VERSION=$TRIVY_VERSION
@@ -24,21 +24,13 @@ COPY docs docs
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
     go run ./cmd/docgen
 
-# Generate the OpenSSF index during build
-COPY scripts/ scripts/
-COPY openssf-cache/osv/ openssf-cache/osv/
-RUN apk add --no-cache python3 && \
-    python3 scripts/build_openssf_index.py
-
 FROM busybox
 
 RUN adduser -u 2004 -D docker
 
 COPY --from=builder --chown=docker:docker /src/bin /dist/bin
 COPY --from=builder --chown=docker:docker /src/docs /docs 
-COPY --from=builder --chown=docker:docker /src/openssf-index.json.gz /dist/cache/openssf-index.json.gz
 COPY --chown=docker:docker cache/ /dist/cache/codacy-trivy
-
-USER docker
+COPY --chown=docker:docker openssf-malicious-packages/openssf-malicious-packages-index.json.gz /dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz
 
 CMD [ "/dist/bin/codacy-trivy" ]
