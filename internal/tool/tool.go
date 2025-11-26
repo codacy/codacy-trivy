@@ -87,11 +87,14 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 
 	secretScanningIssues := t.runSecretScanning(toolExecution)
 
-	openssfScanner := NewOpenSSFScanner()
-	openssfScanningIssues := openssfScanner.ScanForMaliciousPackages(report, toolExecution)
+	maliciousPackagesScanner, err := NewMaliciousPackagesScanner()
+	if err != nil {
+		return nil, err
+	}
+	maliciousPackagesIssues := maliciousPackagesScanner.Scan(report, toolExecution)
 
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
-	allIssues = append(allIssues, openssfScanningIssues...)
+	allIssues = append(allIssues, maliciousPackagesIssues...)
 	allIssues = append(allIssues, sbom)
 
 	return allIssues, nil
@@ -237,16 +240,6 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 
 	}
 
-	// Handle case where toolExecution.Files is nil
-	// This can happen when:
-	// 1. The tool is run in "scan all files" mode without specific file filtering
-	// 2. The Codacy platform doesn't provide a file list (e.g., for certain analysis modes)
-	// 3. The tool execution configuration doesn't specify target files
-	// In these cases, we return all issues without file filtering since we can't determine
-	// which files should be excluded from the analysis.
-	if toolExecution.Files == nil {
-		return mapIssuesWithoutLineNumber(issues), nil
-	}
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
 }
 
