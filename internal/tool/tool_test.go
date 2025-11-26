@@ -3,6 +3,7 @@
 package tool
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"os"
@@ -27,11 +28,42 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	// Arrange
+	// Create an empty temporary file for the malicious packages index
+	maliciousPackageIndexFileName := "malicious-package.json.gz"
+
+	f, err := os.Create(maliciousPackageIndexFileName)
+	if err != nil {
+		assert.FailNow(t, "Failed to create malicious package index", err.Error())
+	}
+	defer os.Remove(f.Name())
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	_, err = gz.Write([]byte("{}"))
+	if err != nil {
+		assert.FailNow(t, "Failed to write to malicious package index", err.Error())
+	}
+	err = gz.Close()
+	if err != nil {
+		assert.FailNow(t, "Failed to write to malicious package index", err.Error())
+	}
+
 	// Act
-	underTest := New()
+	underTest, err := New(f.Name())
 
 	// Assert
+	assert.NoError(t, err)
 	assert.Equal(t, &defaultRunnerFactory{}, underTest.runnerFactory)
+}
+
+func TestNew_MaliciousPackageIndexFileNotFound(t *testing.T) {
+	// Act
+	underTest, err := New("non-existent-file.json.gz")
+
+	// Assert
+	assert.Error(t, err)
+	assert.Nil(t, underTest)
 }
 
 func TestRun(t *testing.T) {

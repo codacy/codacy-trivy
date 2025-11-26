@@ -14,7 +14,7 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-const maliciousPackagesIndexPath = "/dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz"
+const MaliciousPackagesIndexPath = "/dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz"
 
 // maliciousPackage represents a shallow representation of an Open Source Vulnerability (OSV).
 // Although it's schema is generic, it is guaranteed that it is only instantiated for Malicious Package vulnerabilities.
@@ -111,8 +111,8 @@ type MaliciousPackagesScanner struct {
 
 // NewMaliciousPackagesScanner creates a new OpenSSF malicious packages scanner and loads
 // malicious data from disk, as defined by the build process of this tool.
-func NewMaliciousPackagesScanner() (*MaliciousPackagesScanner, error) {
-	index, err := loadIndex(maliciousPackagesIndexPath)
+func NewMaliciousPackagesScanner(indexPath string) (*MaliciousPackagesScanner, error) {
+	index, err := loadIndex(indexPath)
 	if err != nil {
 		return nil, err
 	}

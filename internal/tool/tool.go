@@ -48,14 +48,21 @@ const (
 var ruleIDsVulnerability = []string{ruleIDVulnerabilityCritical, ruleIDVulnerabilityHigh, ruleIDVulnerabilityMedium, ruleIDVulnerabilityMinor}
 
 // New creates a new instance of Codacy Trivy.
-func New() codacyTrivy {
-	return codacyTrivy{
-		runnerFactory: &defaultRunnerFactory{},
+func New(maliciousPackagesIndexPath string) (*codacyTrivy, error) {
+	maliciousPackagesScanner, err := NewMaliciousPackagesScanner(maliciousPackagesIndexPath)
+	if err != nil {
+		return nil, err
 	}
+
+	return &codacyTrivy{
+		runnerFactory:            &defaultRunnerFactory{},
+		maliciousPackagesScanner: *maliciousPackagesScanner,
+	}, nil
 }
 
 type codacyTrivy struct {
-	runnerFactory RunnerFactory
+	runnerFactory            RunnerFactory
+	maliciousPackagesScanner MaliciousPackagesScanner
 }
 
 // https://github.com/uber-go/guide/blob/master/style.md#verify-interface-compliance
@@ -87,11 +94,7 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 
 	secretScanningIssues := t.runSecretScanning(toolExecution)
 
-	maliciousPackagesScanner, err := NewMaliciousPackagesScanner()
-	if err != nil {
-		return nil, err
-	}
-	maliciousPackagesIssues := maliciousPackagesScanner.Scan(report, toolExecution)
+	maliciousPackagesIssues := t.maliciousPackagesScanner.Scan(report, toolExecution)
 
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
 	allIssues = append(allIssues, maliciousPackagesIssues...)
