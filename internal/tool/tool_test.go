@@ -32,11 +32,12 @@ func TestNew(t *testing.T) {
 	// Create an empty temporary file for the malicious packages index
 	maliciousPackageIndexFileName := "malicious-package.json.gz"
 
-	f, err := os.Create(maliciousPackageIndexFileName)
+	tmpDir := t.TempDir()
+	f, err := os.CreateTemp(tmpDir, maliciousPackageIndexFileName)
 	if err != nil {
 		assert.FailNow(t, "Failed to create malicious package index", err.Error())
 	}
-	defer os.Remove(f.Name())
+	defer os.RemoveAll(tmpDir)
 	defer f.Close()
 
 	gz := gzip.NewWriter(f)

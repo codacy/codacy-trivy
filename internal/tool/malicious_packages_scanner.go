@@ -14,6 +14,7 @@ import (
 	"golang.org/x/mod/semver"
 )
 
+// MaliciousPackagesIndexPath is the default path to the malicious package index.
 const MaliciousPackagesIndexPath = "/dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz"
 
 // maliciousPackage represents a shallow representation of an Open Source Vulnerability (OSV).
@@ -120,7 +121,7 @@ func NewMaliciousPackagesScanner(indexPath string) (*MaliciousPackagesScanner, e
 	return &MaliciousPackagesScanner{index: index}, nil
 }
 
-// Scans the given Trivy report for malicious packages.
+// Scan scans the given Trivy report for malicious packages.
 func (s MaliciousPackagesScanner) Scan(report ptypes.Report, toolExecution codacy.ToolExecution) []codacy.Result {
 	maliciousPackagesEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
 		return p.ID == ruleIDMaliciousPackages
