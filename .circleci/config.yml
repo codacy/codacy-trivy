@@ -47,12 +47,11 @@ workflows:
           <<: *build_openssf_malicious_package_index
           name: build_openssf_malicious_package_index
           requires:
-            - generate_and_test
+            - install_trivy_and_download_dbs
       - codacy/shell:
           <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
-            - install_trivy_and_download_dbs
             - build_openssf_malicious_package_index
       - codacy_plugins_test/run:
           name: plugins_test
@@ -101,12 +100,11 @@ workflows:
           <<: *build_openssf_malicious_package_index
           name: build_openssf_malicious_package_index
           requires:
-            - generate_and_test
+            - install_trivy_and_download_dbs
       - codacy/shell:
           <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
-            - install_trivy_and_download_dbs
             - build_openssf_malicious_package_index
       - codacy/publish_docker:
           name: publish_dockerhub
