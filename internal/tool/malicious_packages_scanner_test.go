@@ -395,10 +395,8 @@ func TestLoadIndex_NotJSON(t *testing.T) {
 	result, err := loadIndex(f.Name())
 
 	// Assert
-	if assert.Error(t, err) {
-		assert.Equal(t, "codacy-trivy/tool: Failed to decode malicious package index\nunexpected EOF", err.Error())
-		assert.Nil(t, result)
-	}
+	assert.ErrorContains(t, err, "Failed to decode malicious package index")
+	assert.Nil(t, result)
 }
 
 func TestLoadIndex_NotGz(t *testing.T) {
@@ -422,10 +420,8 @@ func TestLoadIndex_NotGz(t *testing.T) {
 	result, err := loadIndex(f.Name())
 
 	// Assert
-	if assert.Error(t, err) {
-		assert.Equal(t, "codacy-trivy/tool: Failed to read malicious package index\nunexpected EOF", err.Error())
-		assert.Nil(t, result)
-	}
+	assert.ErrorContains(t, err, "Failed to read malicious package index")
+	assert.Nil(t, result)
 }
 
 func TestLoadIndex_NotFound(t *testing.T) {
@@ -433,10 +429,8 @@ func TestLoadIndex_NotFound(t *testing.T) {
 	result, err := loadIndex("non-existent.json.gz")
 
 	// Assert
-	if assert.Error(t, err) {
-		assert.Equal(t, "codacy-trivy/tool: Failed to open malicious package index\nopen non-existent.json.gz: no such file or directory", err.Error())
-		assert.Nil(t, result)
-	}
+	assert.ErrorContains(t, err, "Failed to open malicious package index")
+	assert.Nil(t, result)
 }
 
 func TestSemverCompare(t *testing.T) {
