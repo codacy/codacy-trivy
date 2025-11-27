@@ -1,8 +1,0 @@
-{
-  "name": "all-patterns-test",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "commitlint-pm2-proxima-dotenv-safe": "1.0.0"
-  }
-}
