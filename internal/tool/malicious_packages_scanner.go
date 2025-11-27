@@ -65,7 +65,7 @@ func (r maliciousPackageRange) matchesVersion(version string) bool {
 		return false
 	}
 
-	// Assumes events are ordered with an item with an introduced event being followed by an item with a fixed event.
+	// Assumes events are ordered with an item with an introduced event being followed by an item with a fixed or last_affected event.
 	// This is true for the data we've collected so far.
 	evtPairs := lo.Chunk(r.Events, 2)
 	for _, introducedAndFixedPair := range evtPairs {
@@ -83,13 +83,14 @@ func (r maliciousPackageRange) matchesVersion(version string) bool {
 //
 // See https://ossf.github.io/osv-schema/#affectedrangesevents-fields
 type maliciousPackageRangeEvent struct {
-	Introduced string `json:"introduced,omitempty"`
-	Fixed      string `json:"fixed,omitempty"`
+	Introduced   string `json:"introduced,omitempty"`
+	Fixed        string `json:"fixed,omitempty"`
+	LastAffected string `json:"last_affected,omitempty"`
 }
 
 // matchesVersion checks if version is after Introduced or before Fixed.
 //
-// According to [OSV schema], either 'fixed' or 'introduced' are defined in an event, but not both.
+// According to [OSV schema], only one event field is defined per instance.
 //
 // [OSV schema]: https://ossf.github.io/osv-schema/#requirements
 func (e maliciousPackageRangeEvent) matchesVersion(version string) bool {
@@ -98,6 +99,9 @@ func (e maliciousPackageRangeEvent) matchesVersion(version string) bool {
 	}
 	if e.Fixed != "" {
 		return semverCompare(version, e.Fixed) < 0
+	}
+	if e.LastAffected != "" {
+		return semverCompare(version, e.LastAffected) <= 0
 	}
 	return false
 }

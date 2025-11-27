@@ -550,27 +550,24 @@ func TestMaliciousPackageRangeMatchesVersion(t *testing.T) {
 			mpRange: maliciousPackageRange{
 				Type: "SEMVER",
 				Events: []maliciousPackageRangeEvent{
-					{Introduced: "0"},
-					{Fixed: "1"},
-					{Introduced: "3"},
-					{Fixed: "4"},
+					{Introduced: "1.0.0-beta.1"},
+					{LastAffected: "1.0.0-beta.3"},
 				},
 			},
-			version:        "2.2.2",
+			version:        "1.0.0-beta.4",
 			expectedResult: false,
 		},
 		"SEMVER matches": {
 			mpRange: maliciousPackageRange{
 				Type: "SEMVER",
 				Events: []maliciousPackageRangeEvent{
+					{Introduced: "3"},
+					{LastAffected: "4"},
 					{Introduced: "0"},
 					{Fixed: "1"},
-					{Introduced: "3"},
-					{Fixed: "4"},
-					{Introduced: "5"},
 				},
 			},
-			version:        "5.1.0",
+			version:        "4.0.0",
 			expectedResult: true,
 		},
 		"ECOSYSTEM no matches": {
@@ -612,6 +609,13 @@ func TestMaliciousPackageRangeEventMatchesVersion(t *testing.T) {
 			version:        "0.0.1",
 			expectedResult: true,
 		},
+		"does not match introduced": {
+			event: maliciousPackageRangeEvent{
+				Introduced: "1",
+			},
+			version:        "0.9.9",
+			expectedResult: false,
+		},
 		"matches fixed": {
 			event: maliciousPackageRangeEvent{
 				Fixed: "0.0.2",
@@ -619,19 +623,25 @@ func TestMaliciousPackageRangeEventMatchesVersion(t *testing.T) {
 			version:        "0.0.1",
 			expectedResult: true,
 		},
-		"does not match introduced": {
-			event: maliciousPackageRangeEvent{
-				Introduced: "1",
-				Fixed:      "0", // This is not possible or allowed by the OSV schema, but we test it anyway
-			},
-			version:        "0.9.9",
-			expectedResult: false,
-		},
 		"does not match fixed": {
 			event: maliciousPackageRangeEvent{
 				Fixed: "0.9.8",
 			},
 			version:        "0.9.9",
+			expectedResult: false,
+		},
+		"matches last affected": {
+			event: maliciousPackageRangeEvent{
+				LastAffected: "3.2",
+			},
+			version:        "3.2.0",
+			expectedResult: true,
+		},
+		"does not match last affected": {
+			event: maliciousPackageRangeEvent{
+				LastAffected: "3.2",
+			},
+			version:        "3.2.1",
 			expectedResult: false,
 		},
 		"does not match empty": {
