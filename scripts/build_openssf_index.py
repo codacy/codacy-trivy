@@ -83,7 +83,8 @@ def process_file(path):
     try:
         doc = read_json_file(path)
         return extract_entries(doc)
-    except Exception:
+    except Exception as e:
+        print(f"Failed to open file {path} with error {e}. Proceeding to other files...")
         return []
 
 
