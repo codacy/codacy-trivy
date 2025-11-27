@@ -65,8 +65,14 @@ func (r maliciousPackageRange) matchesVersion(version string) bool {
 		return false
 	}
 
-	for _, event := range r.Events {
-		if event.matchesVersion(version) {
+	// Assumes events are ordered with an item with an introduced event being followed by an item with a fixed event.
+	// This is true for the data we've collected so far.
+	evtPairs := lo.Chunk(r.Events, 2)
+	for _, introducedAndFixedPair := range evtPairs {
+		matchesRange := lo.EveryBy(introducedAndFixedPair, func(e maliciousPackageRangeEvent) bool {
+			return e.matchesVersion(version)
+		})
+		if matchesRange {
 			return true
 		}
 	}
@@ -88,7 +94,7 @@ type maliciousPackageRangeEvent struct {
 // [OSV schema]: https://ossf.github.io/osv-schema/#requirements
 func (e maliciousPackageRangeEvent) matchesVersion(version string) bool {
 	if e.Introduced != "" {
-		return semverCompare(version, e.Fixed) >= 0
+		return semverCompare(version, e.Introduced) >= 0
 	}
 	if e.Fixed != "" {
 		return semverCompare(version, e.Fixed) < 0
