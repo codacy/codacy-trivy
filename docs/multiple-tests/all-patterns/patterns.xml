@@ -5,4 +5,5 @@
     <module name="vulnerability_high" />
     <module name="vulnerability_medium" />
     <module name="vulnerability_minor" />
+    <module name="malicious_packages" />
 </module>

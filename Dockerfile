@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine as builder
+FROM golang:1.25-alpine AS builder
 
 ARG TRIVY_VERSION=dev
 ENV TRIVY_VERSION=$TRIVY_VERSION
@@ -31,5 +31,6 @@ RUN adduser -u 2004 -D docker
 COPY --from=builder --chown=docker:docker /src/bin /dist/bin
 COPY --from=builder --chown=docker:docker /src/docs /docs 
 COPY --chown=docker:docker cache/ /dist/cache/codacy-trivy
+COPY --chown=docker:docker openssf-malicious-packages/openssf-malicious-packages-index.json.gz /dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz
 
 CMD [ "/dist/bin/codacy-trivy" ]

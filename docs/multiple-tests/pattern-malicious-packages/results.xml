@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<checkstyle version="1.5">
+    <file name="javascript/package-lock.json">
+        <error
+            source="malicious_packages"
+            line="11"
+            message="Malicious code in sdge-it-tdg-dynamicloadprofiles (npm) - sdge-it-tdg-dynamicloadprofiles@1.0.1"
+            severity="error"
+        />
+    </file>
+</checkstyle>

@@ -2,3 +2,4 @@ org.apache.logging.log4j:log4j-core:2.17.0
 org.apache.dolphinscheduler:dolphinscheduler-task-api:3.2.1
 org.apache.seatunnel:seatunnel:1.0.0
 org.apache.cxf:cxf-rt-transports-http:4.0.0
+npm:commitlint-pm2-proxima-dotenv-safe:1.0.0

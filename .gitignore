@@ -11,13 +11,21 @@ project
 target
 bin
 cache
+openssf-malicious-packages
 *.gen.go
 .codacyrc
 trivy
 
 
-#Ignore vscode AI rules
+# Ignore vscode AI rules
 .github/copilot-instructions.md
 
-#Ignore cursor AI rules
-.cursor/rules/codacy.mdc   
+# Ignore cursor AI rules
+.cursor/rules/codacy.mdc
+
+# Ignore codacy stuff
+.codacy/cli.sh
+.codacy/codacy.yaml
+
+# Ignore patterns.json
+docs/patterns.json

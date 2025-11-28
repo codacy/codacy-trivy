@@ -33,6 +33,7 @@ const (
 	ruleIDVulnerabilityHigh     string = "vulnerability_high"
 	ruleIDVulnerabilityMedium   string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor    string = "vulnerability_minor"
+	ruleIDMaliciousPackages     string = "malicious_packages"
 
 	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
@@ -47,14 +48,21 @@ const (
 var ruleIDsVulnerability = []string{ruleIDVulnerabilityCritical, ruleIDVulnerabilityHigh, ruleIDVulnerabilityMedium, ruleIDVulnerabilityMinor}
 
 // New creates a new instance of Codacy Trivy.
-func New() codacyTrivy {
-	return codacyTrivy{
-		runnerFactory: &defaultRunnerFactory{},
+func New(maliciousPackagesIndexPath string) (*codacyTrivy, error) {
+	maliciousPackagesScanner, err := NewMaliciousPackagesScanner(maliciousPackagesIndexPath)
+	if err != nil {
+		return nil, err
 	}
+
+	return &codacyTrivy{
+		runnerFactory:            &defaultRunnerFactory{},
+		maliciousPackagesScanner: *maliciousPackagesScanner,
+	}, nil
 }
 
 type codacyTrivy struct {
-	runnerFactory RunnerFactory
+	runnerFactory            RunnerFactory
+	maliciousPackagesScanner MaliciousPackagesScanner
 }
 
 // https://github.com/uber-go/guide/blob/master/style.md#verify-interface-compliance
@@ -86,7 +94,10 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 
 	secretScanningIssues := t.runSecretScanning(toolExecution)
 
+	maliciousPackagesIssues := t.maliciousPackagesScanner.Scan(report, toolExecution)
+
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
+	allIssues = append(allIssues, maliciousPackagesIssues...)
 	allIssues = append(allIssues, sbom)
 
 	return allIssues, nil
@@ -188,9 +199,15 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 		}
 
 		for _, vuln := range result.Vulnerabilities {
+			// Skip vulnerabilities without a valid PURL to avoid panic
+			// This can happen when Trivy detects vulnerabilities in packages that don't have
+			// proper package identifiers (e.g., custom packages, local dependencies, or
+			// packages with malformed metadata). Without a PURL, we cannot reliably map
+			// the vulnerability to a specific package location in the source code.
 			if vuln.PkgIdentifier.PURL == nil {
 				continue
 			}
+
 			purl := vuln.PkgIdentifier.PURL.ToString()
 			// If the line number is not available, use the fallback.
 			if value, ok := lineNumberByPurl[purl]; !ok || value == 0 {
@@ -294,7 +311,7 @@ func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
 	}
 
 	noSupportedPatterns := lo.NoneBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
-		return p.ID == ruleIDSecret || lo.Contains(ruleIDsVulnerability, p.ID)
+		return p.ID == ruleIDSecret || p.ID == ruleIDMaliciousPackages || lo.Contains(ruleIDsVulnerability, p.ID)
 	})
 	if noSupportedPatterns {
 		patternIDs := lo.Map(*toolExecution.Patterns, func(p codacy.Pattern, _ int) string {

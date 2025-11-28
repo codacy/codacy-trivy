@@ -1,2 +1,2 @@
-// The tool package has the implementation of `codacy-trivy`.
+// Package tool implements the Codacy Trivy tool.
 package tool
