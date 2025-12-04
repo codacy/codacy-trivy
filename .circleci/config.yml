@@ -75,8 +75,9 @@ workflows:
   update_vulnerability_dbs:
     triggers:
       - schedule:
-          # run at 00:30 UTC (30 minutes after being updated on the source)
-          cron: "30 0 * * *"
+          # run at 30 minutes past every 6th hour. 00:30 06:30 12:30 18:30
+          # https://github.com/aquasecurity/trivy-db?tab=readme-ov-file#update-interval
+          cron: "30 */6 * * *"
           filters:
             branches:
               only:
