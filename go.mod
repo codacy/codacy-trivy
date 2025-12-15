@@ -13,7 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // Logrus is the logging library used in codacy-engine-golang-seed
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
-	golang.org/x/mod v0.30.0
+	golang.org/x/mod v0.31.0
 )
 
 require (
@@ -382,7 +382,7 @@ require (
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/tools v0.39.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
 	google.golang.org/api v0.248.0 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
