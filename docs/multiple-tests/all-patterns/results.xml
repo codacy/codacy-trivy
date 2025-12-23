@@ -22,6 +22,12 @@
             severity="warning"
         />
         <error
+            source="vulnerability_medium"
+            line="1"
+            message="Insecure dependency maven/org.apache.logging.log4j/log4j-core@2.17.0 (CVE-2025-68161: The Socket Appender in Apache Log4j Core versions 2.0-beta9 through 2. ...) (update to 2.25.3)"
+            severity="warning"
+        />
+        <error
             source="vulnerability_critical"
             line="2"
             message="Insecure dependency maven/org.apache.dolphinscheduler/dolphinscheduler-task-api@3.2.1 (CVE-2024-43202: Apache Dolphinscheduler Code Injection vulnerability) (update to 3.2.2)"
