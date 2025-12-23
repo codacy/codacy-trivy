@@ -7,9 +7,9 @@ orbs:
 references:
   install_trivy_and_download_dbs: &install_trivy_and_download_dbs
     persist_to_workspace: true
-    # https://aquasecurity.github.io/trivy/v0.65/getting-started/installation/#install-script
+    # https://trivy.dev/docs/v0.68/getting-started/installation/#installing-trivy
     cmd: |
-      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.66.0
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.68.2
       mkdir cache
       ./trivy --cache-dir ./cache image --download-db-only
 
