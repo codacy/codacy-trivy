@@ -1,10 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
 <checkstyle version="1.5">
+    <file name="csharp/packages.lock.json">
+        <error
+            source="malicious_packages"
+            line="5"
+            message="Malicious code in Altcoins (NuGet) - Altcoins@1.0.33"
+            severity="error"
+        />
+    </file>
+    <file name="golang/go.mod">
+        <error
+            source="malicious_packages"
+            line="7"
+            message="Malicious code in github.com/boltdb-go/bolt (Go) - github.com/boltdb-go/bolt@v0.0.1"
+            severity="error"
+        />
+    </file>
+    <file name="gradle/gradle.lockfile">
+        <error
+            source="malicious_packages"
+            line="1"
+            message="Malicious code in org.mvnpm:posthog-node (Maven) - org.mvnpm:posthog-node@4.18.1"
+            severity="error"
+        />
+    </file>
+    <file name="java/pom.xml">
+        <error
+            source="malicious_packages"
+            line="14"
+            message="Malicious code in org.mvnpm:posthog-node (Maven) - org.mvnpm:posthog-node@4.18.1"
+            severity="error"
+        />
+    </file>
     <file name="javascript/package-lock.json">
         <error
             source="malicious_packages"
             line="11"
             message="Malicious code in sdge-it-tdg-dynamicloadprofiles (npm) - sdge-it-tdg-dynamicloadprofiles@1.0.1"
+            severity="error"
+        />
+    </file>
+    <file name="python/Pipfile.lock">
+        <error
+            source="malicious_packages"
+            line="19"
+            message="Malicious code in camera-kit (PyPI) - camera-kit@99.0"
+            severity="error"
+        />
+    </file>
+    <file name="ruby/Gemfile.lock">
+        <error
+            source="malicious_packages"
+            line="4"
+            message="Malicious code in znowflake_client (RubyGems) - znowflake_client@1.1.1"
+            severity="error"
+        />
+    </file>
+    <file name="rust/Cargo.lock">
+        <error
+            source="malicious_packages"
+            line="1"
+            message="Malicious code in rustdecimal (crates.io) - rustdecimal@1.0.0"
             severity="error"
         />
     </file>

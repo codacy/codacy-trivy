@@ -1,0 +1,13 @@
+{
+    "version": 1,
+    "dependencies": {
+        ".NETCoreApp,Version=v5.0": {
+            "Altcoins": {
+                "type": "Direct",
+                "requested": "1.0.33",
+                "resolved": "1.0.33",
+                "contentHash": "6mgjfnRB4jKMlzHSl+VD+oUc1IebOZabkbyWj2RiTgWwYPPuaK1H97G1sHqGwPlS5npiF5Q0OrxN1wni2n5QWg=="
+            }
+        }
+    }
+}
