@@ -80,12 +80,28 @@ func TestScan(t *testing.T) {
 					Versions: []string{"1.2.3", "3.2.1"},
 				},
 			},
+			"malicious-pacakge-with-unsupported-ecosystem-versioning": {
+				{
+					ID:      "MAL-unsupported-ecosystem-version",
+					Summary: "Malicious code in malicious-package-with-unsupported-ecosystem-versioning (npm)",
+					Ranges: []maliciousPackageRange{
+						{
+							Type: "ECOSYSTEM",
+							Events: []maliciousPackageRangeEvent{
+								{
+									Introduced: "0",
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"pypi": {
-			"malicious-pacakge-with-ecosystem-versioning": {
+			"malicious-pacakge-with-supported-ecosystem-versioning": {
 				{
-					ID:      "MAL-ecosystem-version",
-					Summary: "Malicious code in malicious-pacakge-with-ecosystem-versioning (pypi)",
+					ID:      "MAL-supported-ecosystem-version",
+					Summary: "Malicious code in malicious-pacakge-with-supported-ecosystem-versioning (pypi)",
 					Ranges: []maliciousPackageRange{
 						{
 							Type: "ECOSYSTEM",
@@ -201,6 +217,15 @@ func TestScan(t *testing.T) {
 							},
 						},
 					},
+					{
+						Identifier: ftypes.PkgIdentifier{
+							PURL: &packageurl.PackageURL{
+								Type: "npm",
+							},
+						},
+						Name:    "malicious-pacakge-with-unsupported-ecosystem-versioning",
+						Version: "1", // Unsupported ecosystem versioning, does not match.
+					},
 				},
 			},
 			{
@@ -212,8 +237,13 @@ func TestScan(t *testing.T) {
 								Type: "pypi",
 							},
 						},
-						Name:    "malicious-pacakge-with-ecosystem-versioning",
-						Version: "3", // Since this is an ecosystem version we can't determine if it matches the vulnerable version.
+						Name:    "malicious-pacakge-with-supported-ecosystem-versioning",
+						Version: "3", // Matches even though this package has ecosystem versioning
+						Locations: ftypes.Locations{
+							{
+								StartLine: 30,
+							},
+						},
 					},
 					{
 						Identifier: ftypes.PkgIdentifier{
@@ -273,6 +303,13 @@ func TestScan(t *testing.T) {
 			Message:   "Malicious code in malicious-package-with-exact-version (npm) - malicious-package-with-exact-version@3.2.1",
 			PatternID: ruleIDMaliciousPackages,
 			SourceID:  "MAL-exact-version",
+		},
+		codacy.Issue{
+			File:      "Pipfile.lock",
+			Line:      30,
+			Message:   "Malicious code in malicious-pacakge-with-supported-ecosystem-versioning (pypi) - malicious-pacakge-with-supported-ecosystem-versioning@3",
+			PatternID: ruleIDMaliciousPackages,
+			SourceID:  "MAL-supported-ecosystem-version",
 		},
 		codacy.FileError{
 			File:    "Cargo.lock",
@@ -445,29 +482,33 @@ func TestOsvPackageEcosystem(t *testing.T) {
 	// Arrange
 	type testData struct {
 		purlType                    string
-		expectedOsvPackageEcosystem string
+		expectedOsvPackageEcosystem osvEcosystem
 	}
 
 	testSet := map[string]testData{
 		"golang": {
 			purlType:                    "golang",
-			expectedOsvPackageEcosystem: "go",
+			expectedOsvPackageEcosystem: golang,
 		},
 		"gem": {
 			purlType:                    "gem",
-			expectedOsvPackageEcosystem: "rubygems",
+			expectedOsvPackageEcosystem: rubygems,
 		},
 		"cargo": {
 			purlType:                    "cargo",
-			expectedOsvPackageEcosystem: "crates.io",
+			expectedOsvPackageEcosystem: cratesio,
 		},
 		"npm": {
 			purlType:                    "npm",
-			expectedOsvPackageEcosystem: "npm",
+			expectedOsvPackageEcosystem: npm,
 		},
 		"nuget": {
 			purlType:                    "NuGet",
-			expectedOsvPackageEcosystem: "nuget",
+			expectedOsvPackageEcosystem: nuget,
+		},
+		"something else": {
+			purlType:                    "something Else",
+			expectedOsvPackageEcosystem: osvPackageEcosystem("something else"),
 		},
 	}
 
@@ -486,6 +527,7 @@ func TestMaliciousPackageMatchesVersion(t *testing.T) {
 	type testData struct {
 		mp             maliciousPackage
 		version        string
+		ecosystem      osvEcosystem
 		expectedResult bool
 	}
 
@@ -497,7 +539,7 @@ func TestMaliciousPackageMatchesVersion(t *testing.T) {
 			version:        "3.2.1",
 			expectedResult: true,
 		},
-		"matches version range": {
+		"matches semver version range": {
 			mp: maliciousPackage{
 				Ranges: []maliciousPackageRange{
 					{
@@ -511,7 +553,7 @@ func TestMaliciousPackageMatchesVersion(t *testing.T) {
 			version:        "0.0.1",
 			expectedResult: true,
 		},
-		"does not match": {
+		"does not match ecosystem range, non-supported ecosystem": {
 			mp: maliciousPackage{
 				Ranges: []maliciousPackageRange{
 					{
@@ -523,14 +565,30 @@ func TestMaliciousPackageMatchesVersion(t *testing.T) {
 				},
 			},
 			version:        "0.0.1",
+			ecosystem:      rubygems,
 			expectedResult: false,
+		},
+		"matche ecosystem range, supported ecosystem": {
+			mp: maliciousPackage{
+				Ranges: []maliciousPackageRange{
+					{
+						Type: "ECOSYSTEM",
+						Events: []maliciousPackageRangeEvent{
+							{Introduced: "0"},
+						},
+					},
+				},
+			},
+			version:        "0.0.1",
+			ecosystem:      pypi,
+			expectedResult: true,
 		},
 	}
 
 	for testName, testData := range testSet {
 		t.Run(testName, func(t *testing.T) {
 			// Act
-			result := testData.mp.matchesVersion(testData.version)
+			result := testData.mp.matchesVersion(testData.version, testData.ecosystem)
 
 			// Assert
 			assert.Equal(t, testData.expectedResult, result)
@@ -542,6 +600,7 @@ func TestMaliciousPackageRangeMatchesVersion(t *testing.T) {
 	type testData struct {
 		mpRange        maliciousPackageRange
 		version        string
+		ecosystem      osvEcosystem
 		expectedResult bool
 	}
 
@@ -570,7 +629,7 @@ func TestMaliciousPackageRangeMatchesVersion(t *testing.T) {
 			version:        "4.0.0",
 			expectedResult: true,
 		},
-		"ECOSYSTEM no matches": {
+		"non-supported ECOSYSTEM": {
 			mpRange: maliciousPackageRange{
 				Type: "ECOSYSTEM",
 				Events: []maliciousPackageRangeEvent{
@@ -578,6 +637,53 @@ func TestMaliciousPackageRangeMatchesVersion(t *testing.T) {
 				},
 			},
 			version:        "1",
+			ecosystem:      cratesio,
+			expectedResult: false,
+		},
+		"supported ECOSYSTEM matches": {
+			mpRange: maliciousPackageRange{
+				Type: "ECOSYSTEM",
+				Events: []maliciousPackageRangeEvent{
+					{Introduced: "0"},
+				},
+			},
+			version:        "1",
+			ecosystem:      maven,
+			expectedResult: true,
+		},
+		// See https://packaging.python.org/en/latest/discussions/versioning/
+		"supported ECOSYSTEM false positive, epoch versioning": {
+			mpRange: maliciousPackageRange{
+				Type: "ECOSYSTEM",
+				Events: []maliciousPackageRangeEvent{
+					{Introduced: "1!3.0.0"},
+				},
+			},
+			version:        "1!2.0.0",
+			ecosystem:      pypi,
+			expectedResult: true, // This is a false positive due the conversion of versions to semver.
+		},
+		// See https://packaging.python.org/en/latest/discussions/versioning/
+		"supported ECOSYSTEM false positive, post release versioning": {
+			mpRange: maliciousPackageRange{
+				Type: "ECOSYSTEM",
+				Events: []maliciousPackageRangeEvent{
+					{Introduced: "1.2.3.post1"},
+				},
+			},
+			version:        "1.2.3",
+			ecosystem:      pypi,
+			expectedResult: true, // This is a false positive due the conversion of versions to semver.
+		},
+		"supported ECOSYSTEM no matches": {
+			mpRange: maliciousPackageRange{
+				Type: "ECOSYSTEM",
+				Events: []maliciousPackageRangeEvent{
+					{Introduced: "2"},
+				},
+			},
+			version:        "1",
+			ecosystem:      pypi,
 			expectedResult: false,
 		},
 	}
@@ -585,7 +691,7 @@ func TestMaliciousPackageRangeMatchesVersion(t *testing.T) {
 	for testName, testData := range testSet {
 		t.Run(testName, func(t *testing.T) {
 			// Act
-			result := testData.mpRange.matchesVersion(testData.version)
+			result := testData.mpRange.matchesVersion(testData.version, testData.ecosystem)
 
 			// Assert
 			assert.Equal(t, testData.expectedResult, result)
