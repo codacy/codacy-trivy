@@ -17,6 +17,21 @@ import (
 // MaliciousPackagesIndexPath is the default path to the malicious package index.
 const MaliciousPackagesIndexPath = "/dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz"
 
+type osvEcosystem string
+
+// These are the seven explicitly supported OSV Ecosystems for malicious package detection.
+//
+// Implicit support is possible if the ecosystem name in the PURL has the same lower case representation as the ecosystem name in the malicious packages DB.
+const (
+	cratesio = osvEcosystem("crates.io")
+	golang   = osvEcosystem("go")
+	maven    = osvEcosystem("maven")
+	npm      = osvEcosystem("npm")
+	nuget    = osvEcosystem("nuget")
+	pypi     = osvEcosystem("pypi")
+	rubygems = osvEcosystem("rubygems")
+)
+
 // maliciousPackage represents a shallow representation of an Open Source Vulnerability (OSV).
 // Although it's schema is generic, it is guaranteed that it is only instantiated for Malicious Package vulnerabilities.
 //
@@ -37,12 +52,12 @@ type maliciousPackage struct {
 // matchesVersion checks if the reported malicious package versions match version.
 //
 // `Ranges` is only checked if there is no direct match in `Versions`.
-func (o maliciousPackage) matchesVersion(version string) bool {
+func (o maliciousPackage) matchesVersion(version string, ecosystem osvEcosystem) bool {
 	if slices.Contains(o.Versions, version) {
 		return true
 	}
 	for _, affectedRange := range o.Ranges {
-		if affectedRange.matchesVersion(version) {
+		if affectedRange.matchesVersion(version, ecosystem) {
 			return true
 		}
 	}
@@ -59,9 +74,15 @@ type maliciousPackageRange struct {
 
 // matchesVersion checks if version matches any of the range events but only if range is of type '[SEMVER]'.
 //
+// The exception are Maven and PyPI ecosystem which support '[ECOSYSTEM]' versions by interpreting them as semver.
+// See corresponding [Jira Issue] to learn about the shortcomings of this method.
+//
 // [SEMVER]: https://ossf.github.io/osv-schema/#affectedrangestype-field
-func (r maliciousPackageRange) matchesVersion(version string) bool {
-	if r.Type != "SEMVER" {
+// [ECOSYSTEM]: https://ossf.github.io/osv-schema/#affectedrangestype-field
+// [Jira Issue]: https://codacy.atlassian.net/browse/TAROT-3605?focusedCommentId=74740
+func (r maliciousPackageRange) matchesVersion(version string, ecosystem osvEcosystem) bool {
+	exception := r.Type == "ECOSYSTEM" && (ecosystem == pypi || ecosystem == maven)
+	if !exception && r.Type != "SEMVER" {
 		return false
 	}
 
@@ -107,7 +128,7 @@ func (e maliciousPackageRangeEvent) matchesVersion(version string) bool {
 }
 
 // maliciousPackagesByEcosystemAndName maps ecosystem names to vulnerable packages.
-type maliciousPackagesByEcosystemAndName map[string]maliciousPackagesByName
+type maliciousPackagesByEcosystemAndName map[osvEcosystem]maliciousPackagesByName
 
 // maliciousPackagesByName maps malicious package names to their OSV entries.
 type maliciousPackagesByName map[string][]maliciousPackage
@@ -159,7 +180,7 @@ func (s MaliciousPackagesScanner) Scan(report ptypes.Report, toolExecution codac
 			}
 
 			for _, candidate := range maliciousPkg {
-				if pkg.Version != "" && candidate.matchesVersion(pkg.Version) {
+				if pkg.Version != "" && candidate.matchesVersion(pkg.Version, pkgEcosystem) {
 
 					var lineNumber int
 					if len(pkg.Locations) > 0 {
@@ -227,16 +248,16 @@ func semverCompare(v1, v2 string) int {
 // osvPackageEcosystem returns the corresponding Ecosystem defined by the OSV schema, for the PURL type of a package identified by Trivy.
 //
 // See https://ossf.github.io/osv-schema/#affectedpackage-field
-func osvPackageEcosystem(purlType string) string {
+func osvPackageEcosystem(purlType string) osvEcosystem {
 	lowerPurlType := strings.ToLower(purlType)
 	switch lowerPurlType {
 	case "golang":
-		return "go"
+		return golang
 	case "gem":
-		return "rubygems"
+		return rubygems
 	case "cargo":
-		return "crates.io"
+		return cratesio
 	default:
-		return lowerPurlType
+		return osvEcosystem(lowerPurlType)
 	}
 }
