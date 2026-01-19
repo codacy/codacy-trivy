@@ -6,11 +6,11 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/aquasecurity/trivy v0.68.2 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20250929072116-eba1ced2340a
-	github.com/codacy/codacy-engine-golang-seed/v6 v6.4.6
+	github.com/codacy/codacy-engine-golang-seed/v6 v6.4.7
 	github.com/google/go-cmp v0.7.0
 	github.com/package-url/packageurl-go v0.1.3
 	github.com/samber/lo v1.52.0
-	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af // Logrus is the logging library used in codacy-engine-golang-seed
+	github.com/sirupsen/logrus v1.9.4 // Logrus is the logging library used in codacy-engine-golang-seed
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
 	golang.org/x/mod v0.31.0
