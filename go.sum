@@ -240,8 +240,8 @@ github.com/cloudflare/circl v1.6.1/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZ
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
 github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f h1:Y8xYupdHxryycyPlc9Y+bSQAYZnetRJ70VMVKm5CKI0=
 github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f/go.mod h1:HlzOvOjVBOfTGSRXRyY0OiCS/3J1akRGQQpRO/7zyF4=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.4.6 h1:EkwZBYPUiz9mzSmXf6wDYwItCgMJXpKjOBllCj7ysfQ=
-github.com/codacy/codacy-engine-golang-seed/v6 v6.4.6/go.mod h1:32aejWm0y7+Qcngg4sS1ZXQKmKSAjEsN6brHdfLF5lQ=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.4.7 h1:7Y/xWhDaLO3WCS1+AoFAPVbpSkHLw5hHutek641l8+I=
+github.com/codacy/codacy-engine-golang-seed/v6 v6.4.7/go.mod h1:9XWa2I+7B6Vke/bqNUWUEcV2WkQG239W6Ov+9LrFesA=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUoc7Ik9EfrFqcylYqgPZ9ANSbTAntnE=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb/go.mod h1:ZjrT6AXHbDs86ZSdt/osfBi5qfexBrKUdONk989Wnk4=
 github.com/containerd/cgroups/v3 v3.1.0 h1:azxYVj+91ZgSnIBp2eI3k9y2iYQSR/ZQIgh9vKO+HSY=
