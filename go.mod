@@ -6,7 +6,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.10.0
 	github.com/aquasecurity/trivy v0.69.1 // Also update .config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
-	github.com/codacy/codacy-engine-golang-seed/v6 v6.4.8
+	github.com/codacy/codacy-engine-golang-seed/v8 v8.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/package-url/packageurl-go v0.1.3
 	github.com/samber/lo v1.52.0
