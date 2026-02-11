@@ -1,6 +1,6 @@
 package docgen
 
-import codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+import codacy "github.com/codacy/codacy-engine-golang-seed/v8"
 
 // Rule represents a static code analysis rule that an execution of `codacy-trivy` can trigger.
 type Rule struct {

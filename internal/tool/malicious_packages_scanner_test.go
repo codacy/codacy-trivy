@@ -7,7 +7,7 @@ import (
 
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
-	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v8"
 	"github.com/package-url/packageurl-go"
 	"github.com/stretchr/testify/assert"
 )

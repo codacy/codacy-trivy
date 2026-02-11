@@ -5,6 +5,7 @@ package tool
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ import (
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
-	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v8"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/package-url/packageurl-go"
@@ -333,105 +334,102 @@ func TestRun(t *testing.T) {
 		expectedMetadataComponentBOMRef := "b804b498-f626-41c5-a47f-45e1471acf33"
 		expectedRootComponentBOMRef := "d16d6083-4370-442f-a6ab-c5146a215dbe"
 		expectedRooComponentName := "file-802713450"
-		expectedSBOM := codacy.SBOM{
-			BOM: cyclonedx.BOM{
-				XMLNS:        "http://cyclonedx.org/schema/bom/1.6",
-				JSONSchema:   "http://cyclonedx.org/schema/bom-1.6.schema.json",
-				BOMFormat:    "CycloneDX",
-				SpecVersion:  cyclonedx.SpecVersion(7),
-				SerialNumber: "urn:uuid:181e846e-fede-46b6-8be7-206a0f393caa", // different every run
-				Version:      1,
-				Metadata: &cyclonedx.Metadata{
-					Timestamp: "2024-09-19T09:41:02.021Z", // different every run
-					Tools: &cyclonedx.ToolsChoice{
-						Components: &[]cyclonedx.Component{
-							{
-								Type: "application",
-								Manufacturer: &cyclonedx.OrganizationalEntity{
-									Name: "Aqua Security Software Ltd.",
-								},
-								Group:   "aquasecurity",
-								Name:    "trivy",
-								Version: "dev",
+		expectedBOM := cyclonedx.BOM{
+			JSONSchema:   "http://cyclonedx.org/schema/bom-1.6.schema.json",
+			BOMFormat:    "CycloneDX",
+			SpecVersion:  cyclonedx.SpecVersion1_6,
+			SerialNumber: "urn:uuid:181e846e-fede-46b6-8be7-206a0f393caa", // different every run
+			Version:      1,
+			Metadata: &cyclonedx.Metadata{
+				Timestamp: "2024-09-19T09:41:02.021Z", // different every run
+				Tools: &cyclonedx.ToolsChoice{
+					Components: &[]cyclonedx.Component{
+						{
+							Type: "application",
+							Manufacturer: &cyclonedx.OrganizationalEntity{
+								Name: "Aqua Security Software Ltd.",
 							},
-						},
-					},
-					Component: &cyclonedx.Component{
-						BOMRef: expectedMetadataComponentBOMRef,
-						Type:   "application",
-						Properties: &[]cyclonedx.Property{
-							{
-								Name:  "aquasecurity:trivy:SchemaVersion",
-								Value: "0",
-							},
+							Group:   "aquasecurity",
+							Name:    "trivy",
+							Version: "dev",
 						},
 					},
 				},
-				Components: &[]cyclonedx.Component{
-					{
-						BOMRef: expectedRootComponentBOMRef,
-						Type:   "application",
-						Name:   "file-802713450",
-						Properties: &[]cyclonedx.Property{
-							{
-								Name:  "aquasecurity:trivy:Class",
-								Value: "lang-pkgs",
-							},
-							{
-								Name: "aquasecurity:trivy:Type",
-							},
+				Component: &cyclonedx.Component{
+					BOMRef: expectedMetadataComponentBOMRef,
+					Type:   "application",
+					Properties: &[]cyclonedx.Property{
+						{
+							Name:  "aquasecurity:trivy:SchemaVersion",
+							Value: "0",
 						},
-					},
-					{
-						BOMRef:     "no-purl",
-						Type:       "library",
-						Properties: &[]cyclonedx.Property{},
-					},
-					{
-						BOMRef:     "pkg:type/@namespace/package-1@version+incompatible",
-						Type:       "library",
-						Properties: &[]cyclonedx.Property{},
-						PackageURL: "pkg:type/@namespace/package-1@version+incompatible",
-						Version:    "version+incompatible",
-					},
-					{
-						BOMRef:     "pkg:type/@namespace/package-2@version+RC",
-						Type:       "library",
-						Properties: &[]cyclonedx.Property{},
-						PackageURL: "pkg:type/@namespace/package-2@version+RC",
-						Version:    "version+RC",
 					},
 				},
-				Dependencies: &[]cyclonedx.Dependency{
-					{
-						Ref: expectedMetadataComponentBOMRef,
-						Dependencies: &[]string{
-							expectedRootComponentBOMRef,
-						},
-					},
-					{
-						Ref: expectedRootComponentBOMRef,
-						Dependencies: &[]string{
-							"no-purl",
-							"pkg:type/@namespace/package-1@version+incompatible",
-							"pkg:type/@namespace/package-2@version+RC",
-						},
-					},
-					{
-						Ref:          "no-purl",
-						Dependencies: &[]string{},
-					},
-					{
-						Ref:          "pkg:type/@namespace/package-1@version+incompatible",
-						Dependencies: &[]string{},
-					},
-					{
-						Ref:          "pkg:type/@namespace/package-2@version+RC",
-						Dependencies: &[]string{},
-					},
-				},
-				Vulnerabilities: &[]cyclonedx.Vulnerability{},
 			},
+			Components: &[]cyclonedx.Component{
+				{
+					BOMRef: expectedRootComponentBOMRef,
+					Type:   "application",
+					Name:   "file-802713450",
+					Properties: &[]cyclonedx.Property{
+						{
+							Name:  "aquasecurity:trivy:Class",
+							Value: "lang-pkgs",
+						},
+						{
+							Name: "aquasecurity:trivy:Type",
+						},
+					},
+				},
+				{
+					BOMRef:     "no-purl",
+					Type:       "library",
+					Properties: &[]cyclonedx.Property{},
+				},
+				{
+					BOMRef:     "pkg:type/@namespace/package-1@version+incompatible",
+					Type:       "library",
+					Properties: &[]cyclonedx.Property{},
+					PackageURL: "pkg:type/@namespace/package-1@version+incompatible",
+					Version:    "version+incompatible",
+				},
+				{
+					BOMRef:     "pkg:type/@namespace/package-2@version+RC",
+					Type:       "library",
+					Properties: &[]cyclonedx.Property{},
+					PackageURL: "pkg:type/@namespace/package-2@version+RC",
+					Version:    "version+RC",
+				},
+			},
+			Dependencies: &[]cyclonedx.Dependency{
+				{
+					Ref: expectedMetadataComponentBOMRef,
+					Dependencies: &[]string{
+						expectedRootComponentBOMRef,
+					},
+				},
+				{
+					Ref: expectedRootComponentBOMRef,
+					Dependencies: &[]string{
+						"no-purl",
+						"pkg:type/@namespace/package-1@version+incompatible",
+						"pkg:type/@namespace/package-2@version+RC",
+					},
+				},
+				{
+					Ref:          "no-purl",
+					Dependencies: &[]string{},
+				},
+				{
+					Ref:          "pkg:type/@namespace/package-1@version+incompatible",
+					Dependencies: &[]string{},
+				},
+				{
+					Ref:          "pkg:type/@namespace/package-2@version+RC",
+					Dependencies: &[]string{},
+				},
+			},
+			Vulnerabilities: &[]cyclonedx.Vulnerability{},
 		}
 		sboms := lo.Filter(results, func(result codacy.Result, _ int) bool {
 			switch result.(type) {
@@ -442,17 +440,21 @@ func TestRun(t *testing.T) {
 			}
 		})
 
+		var obtainedBOM *cyclonedx.BOM
+		err := json.Unmarshal([]byte(sboms[0].(codacy.SBOM).Sbom), &obtainedBOM)
+		assert.NoError(t, err)
+
 		// Set values that change on every run to known values.
 		// This allows us to test the relationship between components.
-		oldMetadataComponentBOMRef := sboms[0].(codacy.SBOM).Metadata.Component.BOMRef
-		sboms[0].(codacy.SBOM).Metadata.Component.BOMRef = expectedMetadataComponentBOMRef
+		oldMetadataComponentBOMRef := obtainedBOM.Metadata.Component.BOMRef
+		obtainedBOM.Metadata.Component.BOMRef = expectedMetadataComponentBOMRef
 		// Components are always in declaration order, with the root component (created automatically) coming first
-		cs := *sboms[0].(codacy.SBOM).Components
+		cs := *obtainedBOM.Components
 		oldRootComponentBOMRef := cs[0].BOMRef
 		cs[0].BOMRef = expectedRootComponentBOMRef
 		cs[0].Name = expectedRooComponentName
 		// Dependencies are not always in order we must take care to change the correct value
-		ds := *sboms[0].(codacy.SBOM).Dependencies
+		ds := *obtainedBOM.Dependencies
 		for i, d := range ds {
 			if d.Ref == oldMetadataComponentBOMRef {
 				ds[i].Ref = expectedMetadataComponentBOMRef
@@ -469,14 +471,16 @@ func TestRun(t *testing.T) {
 
 		// Only one SBOM result is produced
 		assert.Len(t, sboms, 1)
+		assert.Equal(t, sboms[0].(codacy.SBOM).BomFormat, codacy.CycloneDXJSON)
+		assert.Equal(t, sboms[0].(codacy.SBOM).SpecVersion, "1.6")
 		assert.True(
 			t,
 			cmp.Equal(
-				expectedSBOM,
-				sboms[0],
+				expectedBOM,
+				*obtainedBOM,
 				cmp.Options{
 					// Ignore fields that change each run
-					cmpopts.IgnoreFields(codacy.SBOM{}, "SerialNumber"),
+					cmpopts.IgnoreFields(cyclonedx.BOM{}, "SerialNumber"),
 					cmpopts.IgnoreFields(cyclonedx.Metadata{}, "Timestamp"),
 				},
 			),

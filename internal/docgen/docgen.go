@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v8"
 	"github.com/codacy/codacy-trivy/internal"
 )
 

@@ -3,6 +3,7 @@ package tool
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -20,7 +21,7 @@ import (
 	tresult "github.com/aquasecurity/trivy/pkg/result"
 	tcdx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
-	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v8"
 	"github.com/codacy/codacy-trivy/internal"
 	"github.com/package-url/packageurl-go"
 	"github.com/samber/lo"
@@ -255,7 +256,17 @@ func (t codacyTrivy) getSBOM(ctx context.Context, report ptypes.Report) (codacy.
 	}
 
 	unencodeComponents(bom)
-	return codacy.SBOM{BOM: *bom}, nil
+
+	bomStr, err := json.Marshal(bom)
+	if err != nil {
+		return codacy.SBOM{}, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
+	}
+
+	return codacy.SBOM{
+		BomFormat:   codacy.CycloneDXJSON,
+		SpecVersion: bom.SpecVersion.String(),
+		Sbom:        string(bomStr),
+	}, nil
 }
 
 // Running Trivy for secret scanning is not as efficient as running for vulnerability scanning.
