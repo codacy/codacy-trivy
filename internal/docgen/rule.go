@@ -72,10 +72,10 @@ func secretRule() Rules {
 func vulnerabilityRules() Rules {
 	const descPrefix = "Detects insecure dependencies (%s severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities."
 	return Rules{
-		{"vulnerability_critical", "Insecure dependencies detection (critical severity)", fmt.Sprintf(descPrefix, "critical"), "Error", "Security", "InsecureModulesLibraries", "SCA", true},
-		{"vulnerability_high", "Insecure dependencies detection (high severity)", fmt.Sprintf(descPrefix, "high"), "High", "Security", "InsecureModulesLibraries", "SCA", true},
-		{"vulnerability_medium", "Insecure dependencies detection (medium severity)", fmt.Sprintf(descPrefix, "medium"), "Warning", "Security", "InsecureModulesLibraries", "SCA", true},
-		{"vulnerability_minor", "Insecure dependencies detection (minor severity)", fmt.Sprintf(descPrefix, "minor"), "Info", "Security", "InsecureModulesLibraries", "SCA", true},
+		{ID: "vulnerability_critical", Title: "Insecure dependencies detection (critical severity)", Description: fmt.Sprintf(descPrefix, "critical"), Level: "Error", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
+		{ID: "vulnerability_high", Title: "Insecure dependencies detection (high severity)", Description: fmt.Sprintf(descPrefix, "high"), Level: "High", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
+		{ID: "vulnerability_medium", Title: "Insecure dependencies detection (medium severity)", Description: fmt.Sprintf(descPrefix, "medium"), Level: "Warning", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
+		{ID: "vulnerability_minor", Title: "Insecure dependencies detection (minor severity)", Description: fmt.Sprintf(descPrefix, "minor"), Level: "Info", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
 	}
 }
 
@@ -94,10 +94,10 @@ func maliciousPackagesRule() Rules {
 
 func eolRules() Rules {
 	return Rules{
-		{"eol_critical", "End-of-life package (obsolete)", "Detects packages that have reached end-of-life and are no longer supported. These dependencies no longer receive security updates and should be upgraded.", "Error", "Security", "InsecureModulesLibraries", "SCA", true},
-		{"eol_high", "End-of-life package (within 1 month)", "Detects packages that will reach end-of-life within one month. Plan to upgrade before support ends.", "High", "Security", "InsecureModulesLibraries", "SCA", true},
-		{"eol_medium", "End-of-life package (within 6 months)", "Detects packages that will reach end-of-life within six months. Consider upgrading to a supported version.", "Warning", "Security", "InsecureModulesLibraries", "SCA", true},
-		{"eol_minor", "End-of-life package (beyond 6 months)", "Detects packages that will reach end-of-life in more than six months. Track for future upgrade planning.", "Info", "Security", "InsecureModulesLibraries", "SCA", true},
+		{ID: "eol_critical", Title: "End-of-life package (obsolete)", Description: "Detects packages that have reached end-of-life and are no longer supported. These dependencies no longer receive security updates and should be upgraded.", Level: "Error", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
+		{ID: "eol_high", Title: "End-of-life package (within 1 month)", Description: "Detects packages that will reach end-of-life within one month. Plan to upgrade before support ends.", Level: "High", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
+		{ID: "eol_medium", Title: "End-of-life package (within 6 months)", Description: "Detects packages that will reach end-of-life within six months. Consider upgrading to a supported version.", Level: "Warning", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
+		{ID: "eol_minor", Title: "End-of-life package (beyond 6 months)", Description: "Detects packages that will reach end-of-life in more than six months. Track for future upgrade planning.", Level: "Info", Category: "Security", SubCategory: "InsecureModulesLibraries", ScanType: "SCA", Enabled: true},
 	}
 }
 

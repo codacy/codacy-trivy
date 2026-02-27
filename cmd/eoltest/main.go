@@ -10,6 +10,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -50,9 +51,13 @@ func main() {
 // resolveIndexPath returns the malicious-packages index path and a cleanup function.
 // If the default path exists it is returned with a no-op cleanup; otherwise a temp empty index is created.
 func resolveIndexPath() (path string, cleanup func(), err error) {
-	path = tool.MaliciousPackagesIndexPath
-	if _, err := os.Stat(path); err == nil {
-		return path, func() {}, nil
+	return resolveIndexPathWithDefault(tool.MaliciousPackagesIndexPath)
+}
+
+// resolveIndexPathWithDefault is the testable core; defaultPath is the path to check first (e.g. tool.MaliciousPackagesIndexPath).
+func resolveIndexPathWithDefault(defaultPath string) (path string, cleanup func(), err error) {
+	if _, statErr := os.Stat(defaultPath); statErr == nil {
+		return defaultPath, func() {}, nil
 	}
 	f, err := os.CreateTemp("", "codacy-trivy-malicious-*.json.gz")
 	if err != nil {
@@ -84,24 +89,35 @@ func runEOLScan(ctx context.Context, dir, indexPath string) ([]codacy.Result, er
 
 // printEOLResults prints EOL issues and file errors from results, then a summary line.
 func printEOLResults(results []codacy.Result) {
+	printEOLResultsTo(os.Stdout, os.Stderr, results)
+}
+
+// printEOLResultsTo is the testable core; if stdout or stderr is nil, os.Stdout or os.Stderr is used.
+func printEOLResultsTo(stdout, stderr io.Writer, results []codacy.Result) {
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+	if stderr == nil {
+		stderr = os.Stderr
+	}
 	var count int
 	for _, r := range results {
 		switch v := r.(type) {
 		case codacy.Issue:
 			if isEOL(v.PatternID) {
 				count++
-				fmt.Printf("%s:%d [%s] %s\n", v.File, v.Line, v.PatternID, v.Message)
+				fmt.Fprintf(stdout, "%s:%d [%s] %s\n", v.File, v.Line, v.PatternID, v.Message)
 			}
 		case codacy.FileError:
 			if v.File != "" {
-				fmt.Fprintf(os.Stderr, "file error %s: %s\n", v.File, v.Message)
+				fmt.Fprintf(stderr, "file error %s: %s\n", v.File, v.Message)
 			}
 		}
 	}
 	if count == 0 {
-		fmt.Println("No EOL issues found. Ensure the project has EOL deps (e.g. npm install in test-eol-project) and XEOL_DB_CACHE_DIR is set or DB is in default cache.")
+		fmt.Fprintln(stdout, "No EOL issues found. Ensure the project has EOL deps (e.g. npm install in test-eol-project) and XEOL_DB_CACHE_DIR is set or DB is in default cache.")
 	} else {
-		fmt.Printf("\nTotal EOL issues: %d\n", count)
+		fmt.Fprintf(stdout, "\nTotal EOL issues: %d\n", count)
 	}
 }
 
