@@ -67,78 +67,89 @@ func NewEOLScanner(runner EOLRunner) *EOLScanner {
 	return &EOLScanner{runner: runner}
 }
 
+// writeSBOMToTemp writes the BOM to a temp file and returns its path and a cleanup function.
+// Caller must call cleanup when done. On error returns ( "", nil, error result ).
+func writeSBOMToTemp(bom *cdx.BOM) (sbomPath string, cleanup func(), errResult []codacy.Result) {
+	tmpDir, err := os.MkdirTemp("", "codacy-trivy-sbom-")
+	if err != nil {
+		return "", nil, []codacy.Result{codacy.FileError{File: "", Message: "Failed to create temp dir for EOL scan"}}
+	}
+	cleanup = func() { os.RemoveAll(tmpDir) }
+	sbomPath = filepath.Join(tmpDir, "sbom.json")
+	f, err := os.Create(sbomPath)
+	if err != nil {
+		cleanup()
+		return "", nil, []codacy.Result{codacy.FileError{File: "", Message: "Failed to write SBOM for EOL scan"}}
+	}
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(bom); err != nil {
+		f.Close()
+		cleanup()
+		return "", nil, []codacy.Result{codacy.FileError{File: "", Message: "Failed to encode SBOM for EOL scan"}}
+	}
+	if err := f.Close(); err != nil {
+		cleanup()
+		return "", nil, []codacy.Result{codacy.FileError{File: "", Message: "Failed to close SBOM file"}}
+	}
+	return sbomPath, cleanup, nil
+}
+
+// matchToIssue converts one EOL match to a Codacy issue if location can be resolved. Returns (issue, true) or (zero, false).
+func matchToIssue(m eolMatch, report ptypes.Report, sourceDir string, purlToLocation map[string]pkgLocation) (codacy.Issue, bool) {
+	ruleID, err := severityFromEolDate(m.EolDate)
+	if err != nil {
+		return codacy.Issue{}, false
+	}
+	loc, ok := purlToLocation[m.PURL]
+	if !ok {
+		loc, ok = findLocationByPackage(report, m.Name, m.Version)
+		if !ok {
+			return codacy.Issue{}, false
+		}
+	}
+	line := loc.line
+	if line == 0 {
+		line = fallbackSearchForLineNumber(sourceDir, loc.target, m.Name)
+	}
+	msg := fmt.Sprintf("End-of-life package %s@%s (EOL %s)", m.Name, m.Version, m.EolDate)
+	if m.CycleID != "" {
+		msg = fmt.Sprintf("%s [%s]", msg, m.CycleID)
+	}
+	return codacy.Issue{
+		File:      loc.target,
+		Line:      line,
+		Message:   msg,
+		PatternID: ruleID,
+		SourceID:  m.EolDate,
+	}, true
+}
+
 // Scan runs the EOL scan and returns Codacy results.
 // If no EOL pattern is enabled, returns empty. Uses report to resolve file/line from PURL.
 func (s *EOLScanner) Scan(report ptypes.Report, toolExecution codacy.ToolExecution, bom *cdx.BOM) []codacy.Result {
 	eolEnabled := lo.SomeBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
 		return lo.Contains(ruleIDsEOL, p.ID)
 	})
-	if !eolEnabled {
+	if !eolEnabled || bom == nil || bom.Components == nil {
 		return []codacy.Result{}
 	}
-
-	if bom == nil || bom.Components == nil {
-		return []codacy.Result{}
+	sbomPath, cleanup, errResult := writeSBOMToTemp(bom)
+	if errResult != nil {
+		return errResult
 	}
-
-	tmpDir, err := os.MkdirTemp("", "codacy-trivy-sbom-")
-	if err != nil {
-		return []codacy.Result{codacy.FileError{File: "", Message: "Failed to create temp dir for EOL scan"}}
-	}
-	defer os.RemoveAll(tmpDir)
-
-	sbomPath := filepath.Join(tmpDir, "sbom.json")
-	f, err := os.Create(sbomPath)
-	if err != nil {
-		return []codacy.Result{codacy.FileError{File: "", Message: "Failed to write SBOM for EOL scan"}}
-	}
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(bom); err != nil {
-		f.Close()
-		return []codacy.Result{codacy.FileError{File: "", Message: "Failed to encode SBOM for EOL scan"}}
-	}
-	if err := f.Close(); err != nil {
-		return []codacy.Result{codacy.FileError{File: "", Message: "Failed to close SBOM file"}}
-	}
-
+	defer cleanup()
 	matches, err := s.runner.Run(sbomPath)
 	if err != nil {
 		return []codacy.Result{codacy.FileError{File: "", Message: fmt.Sprintf("EOL scan failed: %v", err)}}
 	}
-
 	purlToLocation := buildPURLToLocation(report)
 	var issues []codacy.Issue
 	for _, m := range matches {
-		ruleID, err := severityFromEolDate(m.EolDate)
-		if err != nil {
-			continue
+		if issue, ok := matchToIssue(m, report, toolExecution.SourceDir, purlToLocation); ok {
+			issues = append(issues, issue)
 		}
-		loc, ok := purlToLocation[m.PURL]
-		if !ok {
-			// Try by name+version in case PURL format differs
-			loc, ok = findLocationByPackage(report, m.Name, m.Version)
-			if !ok {
-				continue
-			}
-		}
-		line := loc.line
-		if line == 0 {
-			line = fallbackSearchForLineNumber(toolExecution.SourceDir, loc.target, m.Name)
-		}
-		msg := fmt.Sprintf("End-of-life package %s@%s (EOL %s)", m.Name, m.Version, m.EolDate)
-		if m.CycleID != "" {
-			msg = fmt.Sprintf("%s [%s]", msg, m.CycleID)
-		}
-		issues = append(issues, codacy.Issue{
-			File:      loc.target,
-			Line:      line,
-			Message:   msg,
-			PatternID: ruleID,
-			SourceID:  m.EolDate,
-		})
 	}
-
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files))
 }
 

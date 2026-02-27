@@ -1,6 +1,10 @@
 package docgen
 
-import codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+import (
+	"fmt"
+
+	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+)
 
 // Rule represents a static code analysis rule that an execution of `codacy-trivy` can trigger.
 type Rule struct {
@@ -52,108 +56,52 @@ func (rs Rules) toCodacyPatternDescription() []codacy.PatternDescription {
 	return codacyPatternsDescription
 }
 
+func secretRule() Rules {
+	return Rules{{
+		ID:          "secret",
+		Title:       "Secret detection",
+		Description: "Detects secrets that should not be committed to a repository or otherwise disclosed, such as secret keys, passwords, and authentication tokens from multiple products.",
+		Level:       "Error",
+		Category:    "Security",
+		SubCategory: "Cryptography",
+		ScanType:    "Secrets",
+		Enabled:     true,
+	}}
+}
+
+func vulnerabilityRules() Rules {
+	const descPrefix = "Detects insecure dependencies (%s severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities."
+	return Rules{
+		{"vulnerability_critical", "Insecure dependencies detection (critical severity)", fmt.Sprintf(descPrefix, "critical"), "Error", "Security", "InsecureModulesLibraries", "SCA", true},
+		{"vulnerability_high", "Insecure dependencies detection (high severity)", fmt.Sprintf(descPrefix, "high"), "High", "Security", "InsecureModulesLibraries", "SCA", true},
+		{"vulnerability_medium", "Insecure dependencies detection (medium severity)", fmt.Sprintf(descPrefix, "medium"), "Warning", "Security", "InsecureModulesLibraries", "SCA", true},
+		{"vulnerability_minor", "Insecure dependencies detection (minor severity)", fmt.Sprintf(descPrefix, "minor"), "Info", "Security", "InsecureModulesLibraries", "SCA", true},
+	}
+}
+
+func maliciousPackagesRule() Rules {
+	return Rules{{
+		ID:          "malicious_packages",
+		Title:       "Malicious packages detection",
+		Description: "Detects malicious packages identified in the OpenSSF Malicious Packages database, including typosquatting attacks, dependency confusion, and packages with malicious payloads.",
+		Level:       "Error",
+		Category:    "Security",
+		SubCategory: "InsecureModulesLibraries",
+		ScanType:    "SCA",
+		Enabled:     true,
+	}}
+}
+
+func eolRules() Rules {
+	return Rules{
+		{"eol_critical", "End-of-life package (obsolete)", "Detects packages that have reached end-of-life and are no longer supported. These dependencies no longer receive security updates and should be upgraded.", "Error", "Security", "InsecureModulesLibraries", "SCA", true},
+		{"eol_high", "End-of-life package (within 1 month)", "Detects packages that will reach end-of-life within one month. Plan to upgrade before support ends.", "High", "Security", "InsecureModulesLibraries", "SCA", true},
+		{"eol_medium", "End-of-life package (within 6 months)", "Detects packages that will reach end-of-life within six months. Consider upgrading to a supported version.", "Warning", "Security", "InsecureModulesLibraries", "SCA", true},
+		{"eol_minor", "End-of-life package (beyond 6 months)", "Detects packages that will reach end-of-life in more than six months. Track for future upgrade planning.", "Info", "Security", "InsecureModulesLibraries", "SCA", true},
+	}
+}
+
 // trivyRules returns all `codacy-trivy` Rules.
 func trivyRules() Rules {
-	return Rules{
-		{
-			ID:          "secret",
-			Title:       "Secret detection",
-			Description: "Detects secrets that should not be committed to a repository or otherwise disclosed, such as secret keys, passwords, and authentication tokens from multiple products.",
-			Level:       "Error",
-			Category:    "Security",
-			SubCategory: "Cryptography",
-			ScanType:    "Secrets",
-			Enabled:     true,
-		},
-		{
-			ID:          "vulnerability_critical",
-			Title:       "Insecure dependencies detection (critical severity)",
-			Description: "Detects insecure dependencies (critical severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
-			Level:       "Error",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "vulnerability_high",
-			Title:       "Insecure dependencies detection (high severity)",
-			Description: "Detects insecure dependencies (high severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
-			Level:       "High",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "vulnerability_medium",
-			Title:       "Insecure dependencies detection (medium severity)",
-			Description: "Detects insecure dependencies (medium severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
-			Level:       "Warning",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "vulnerability_minor",
-			Title:       "Insecure dependencies detection (minor severity)",
-			Description: "Detects insecure dependencies (minor severity) by checking the libraries declared in the package manager and flagging used library versions with known security vulnerabilities.",
-			Level:       "Info",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "malicious_packages",
-			Title:       "Malicious packages detection",
-			Description: "Detects malicious packages identified in the OpenSSF Malicious Packages database, including typosquatting attacks, dependency confusion, and packages with malicious payloads.",
-			Level:       "Error",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "eol_critical",
-			Title:       "End-of-life package (obsolete)",
-			Description: "Detects packages that have reached end-of-life and are no longer supported. These dependencies no longer receive security updates and should be upgraded.",
-			Level:       "Error",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "eol_high",
-			Title:       "End-of-life package (within 1 month)",
-			Description: "Detects packages that will reach end-of-life within one month. Plan to upgrade before support ends.",
-			Level:       "High",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "eol_medium",
-			Title:       "End-of-life package (within 6 months)",
-			Description: "Detects packages that will reach end-of-life within six months. Consider upgrading to a supported version.",
-			Level:       "Warning",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-		{
-			ID:          "eol_minor",
-			Title:       "End-of-life package (beyond 6 months)",
-			Description: "Detects packages that will reach end-of-life in more than six months. Track for future upgrade planning.",
-			Level:       "Info",
-			Category:    "Security",
-			SubCategory: "InsecureModulesLibraries",
-			ScanType:    "SCA",
-			Enabled:     true,
-		},
-	}
+	return append(append(append(secretRule(), vulnerabilityRules()...), maliciousPackagesRule()...), eolRules()...)
 }

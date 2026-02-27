@@ -72,6 +72,49 @@ func NewBuilder() *Builder {
 	}
 }
 
+// parseOSVFile reads and decodes one OSV JSON file into a rawRecord.
+func parseOSVFile(path string) (*rawRecord, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	var raw rawRecord
+	if err := json.NewDecoder(file).Decode(&raw); err != nil {
+		return nil, err
+	}
+	raw.trim()
+	return &raw, nil
+}
+
+// aggregateRawInto merges a raw OSV record into the output package map.
+func aggregateRawInto(out *Output, raw *rawRecord) {
+	for _, affected := range raw.Affected {
+		ecosystem := normalizeEcosystem(affected.Package.Ecosystem)
+		if ecosystem == "" || affected.Package.Name == "" {
+			continue
+		}
+		name := strings.ToLower(affected.Package.Name)
+		entry := &Entry{
+			ID:         raw.ID,
+			Ecosystem:  ecosystem,
+			Package:    affected.Package.Name,
+			Summary:    raw.Summary,
+			Details:    raw.Details,
+			Versions:   cloneAndSort(affected.Versions),
+			Ranges:     cloneRanges(affected.Ranges),
+			References: cloneReferences(raw.References),
+			Aliases:    cloneStrings(raw.Aliases),
+			Published:  raw.Published,
+			Modified:   raw.Modified,
+		}
+		if _, ok := out.Packages[ecosystem]; !ok {
+			out.Packages[ecosystem] = make(map[string][]*Entry)
+		}
+		out.Packages[ecosystem][name] = append(out.Packages[ecosystem][name], entry)
+	}
+}
+
 // Build walks the provided OpenSSF repository directory and emits an aggregated Output.
 // The source parameter is used to document where the data originated from.
 func (b *Builder) Build(ctx context.Context, repoDir, source string) (*Output, error) {
@@ -81,19 +124,16 @@ func (b *Builder) Build(ctx context.Context, repoDir, source string) (*Output, e
 	if source == "" {
 		return nil, errors.New("source description is required")
 	}
-
 	root := filepath.Join(repoDir, "osv", "malicious")
 	if _, err := os.Stat(root); err != nil {
 		return nil, err
 	}
-
 	out := &Output{
 		SchemaVersion: SchemaVersion,
 		GeneratedAt:   b.now().UTC(),
 		Source:        source,
 		Packages:      make(map[string]map[string][]*Entry),
 	}
-
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -101,55 +141,19 @@ func (b *Builder) Build(ctx context.Context, repoDir, source string) (*Output, e
 		if d.IsDir() || !strings.HasSuffix(d.Name(), ".json") {
 			return nil
 		}
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-
-		file, err := os.Open(path)
+		raw, err := parseOSVFile(path)
 		if err != nil {
 			return err
 		}
-		defer file.Close()
-
-		var raw rawRecord
-		if err := json.NewDecoder(file).Decode(&raw); err != nil {
-			return err
-		}
-		raw.trim()
-
-		for _, affected := range raw.Affected {
-			ecosystem := normalizeEcosystem(affected.Package.Ecosystem)
-			if ecosystem == "" || affected.Package.Name == "" {
-				continue
-			}
-			name := strings.ToLower(affected.Package.Name)
-
-			entry := &Entry{
-				ID:         raw.ID,
-				Ecosystem:  ecosystem,
-				Package:    affected.Package.Name,
-				Summary:    raw.Summary,
-				Details:    raw.Details,
-				Versions:   cloneAndSort(affected.Versions),
-				Ranges:     cloneRanges(affected.Ranges),
-				References: cloneReferences(raw.References),
-				Aliases:    cloneStrings(raw.Aliases),
-				Published:  raw.Published,
-				Modified:   raw.Modified,
-			}
-
-			if _, ok := out.Packages[ecosystem]; !ok {
-				out.Packages[ecosystem] = make(map[string][]*Entry)
-			}
-			out.Packages[ecosystem][name] = append(out.Packages[ecosystem][name], entry)
-		}
-
+		aggregateRawInto(out, raw)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-
 	return out, nil
 }
 

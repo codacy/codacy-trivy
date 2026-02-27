@@ -138,14 +138,10 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string, patterns
 		patterns = []codacy.Pattern{}
 	}
 	cacheDir := getTrivyCacheDir()
-	vulnerabilityScanningEnabled := lo.SomeBy(patterns, func(p codacy.Pattern) bool {
-		return lo.Contains(ruleIDsVulnerability, p.ID)
-	})
 	// When using a local cache (TRIVY_CACHE_DIR), allow DB update on first run; production image uses skip.
 	skipDBUpdate := cacheDir == defaultCacheDir
 	offlineScan := cacheDir == defaultCacheDir
 	scanners := ptypes.Scanners{ptypes.VulnerabilityScanner}
-	// EOL-only: still use VulnerabilityScanner so report has packages for SBOM; Trivy DB must exist in image (see Dockerfile).
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
 			CacheDir: cacheDir,
@@ -197,6 +193,50 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string, patterns
 	return results, nil
 }
 
+// buildLineNumberByPurl builds a PURL-to-line map from a Trivy result's packages.
+func buildLineNumberByPurl(result ptypes.Result) map[string]int {
+	lineNumberByPurl := make(map[string]int)
+	for _, pkg := range result.Packages {
+		if pkg.Identifier.PURL == nil {
+			continue
+		}
+		line := 0
+		if len(pkg.Locations) > 0 {
+			line = pkg.Locations[0].StartLine
+		}
+		lineNumberByPurl[pkg.Identifier.PURL.ToString()] = line
+	}
+	return lineNumberByPurl
+}
+
+// vulnerabilityToIssue converts one Trivy vulnerability to a Codacy issue, or (zero, false) if skipped (e.g. no PURL).
+// lineByPurl is mutated to fill in fallback line when missing. Returns error only for ruleID mapping failure.
+func vulnerabilityToIssue(target, sourceDir string, vuln ptypes.DetectedVulnerability, lineByPurl map[string]int) (codacy.Issue, bool, error) {
+	if vuln.PkgIdentifier.PURL == nil {
+		return codacy.Issue{}, false, nil
+	}
+	purl := vuln.PkgIdentifier.PURL.ToString()
+	if line, ok := lineByPurl[purl]; !ok || line == 0 {
+		lineByPurl[purl] = fallbackSearchForLineNumber(sourceDir, target, vuln.PkgName)
+	}
+	fixedVersion := findLeastDisruptiveFixedVersion(vuln)
+	fixedVersionMessage := "(no fix available)"
+	if fixedVersion != "" {
+		fixedVersionMessage = fmt.Sprintf("(update to %s)", fixedVersion)
+	}
+	ruleID, err := getRuleIDFromTrivySeverity(vuln.Severity)
+	if err != nil {
+		return codacy.Issue{}, false, err
+	}
+	return codacy.Issue{
+		File:      target,
+		Line:      lineByPurl[purl],
+		Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
+		PatternID: ruleID,
+		SourceID:  vuln.VulnerabilityID,
+	}, true, nil
+}
+
 // getVulnerabilties obtains the vulnerable dependency issues from `report` respecting the `toolExecution` configuration,
 // with regards to patterns enabled, files to scan and line numbers. See [mapIssuesWithoutLineNumber] and [filterIssuesFromKnownFiles].
 //
@@ -208,79 +248,27 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 	if !vulnerabilityScanningEnabled {
 		return []codacy.Result{}, nil
 	}
-
 	trivySeverities := getTrivySeveritiesFromPatterns(*toolExecution.Patterns)
-	// This should never happen, given that we validate the patterns above. Still, it's a failsafe.
 	if len(trivySeverities) == 0 {
 		return nil, &ToolError{msg: fmt.Sprintf("Failed to run Codacy Trivy: vulnerability patterns did not produce severities (patterns %v)", *toolExecution.Patterns)}
 	}
 
-	issues := []codacy.Issue{}
+	var issues []codacy.Issue
 	for _, result := range report.Results {
-		// Make a map for faster lookup
-		lineNumberByPurl := map[string]int{}
-		for _, pkg := range result.Packages {
-			if pkg.Identifier.PURL == nil {
-				continue
-			}
-			lineNumber := 0
-			if len(pkg.Locations) > 0 {
-				lineNumber = pkg.Locations[0].StartLine
-			}
-			lineNumberByPurl[pkg.Identifier.PURL.ToString()] = lineNumber
-		}
-
-		// Ensure Trivy only produces results with severities matching the specified patterns.
-		// Due to the way we invoke Trivy, this won't happen by simply setting it in the config.
+		lineByPurl := buildLineNumberByPurl(result)
 		if err := tresult.FilterResult(ctx, &result, tresult.IgnoreConfig{}, tresult.FilterOptions{Severities: trivySeverities}); err != nil {
 			return nil, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
 		}
-
 		for _, vuln := range result.Vulnerabilities {
-			// Skip vulnerabilities without a valid PURL to avoid panic
-			// This can happen when Trivy detects vulnerabilities in packages that don't have
-			// proper package identifiers (e.g., custom packages, local dependencies, or
-			// packages with malformed metadata). Without a PURL, we cannot reliably map
-			// the vulnerability to a specific package location in the source code.
-			if vuln.PkgIdentifier.PURL == nil {
-				continue
-			}
-
-			purl := vuln.PkgIdentifier.PURL.ToString()
-			// If the line number is not available, use the fallback.
-			if value, ok := lineNumberByPurl[purl]; !ok || value == 0 {
-				lineNumberByPurl[purl] = fallbackSearchForLineNumber(toolExecution.SourceDir, result.Target, vuln.PkgName)
-			}
-
-			// Find the smallest version increment that fixes a vulnerabillity
-			fixedVersion := findLeastDisruptiveFixedVersion(vuln)
-			fixedVersionMessage := ""
-			if len(fixedVersion) > 0 {
-				fixedVersionMessage = fmt.Sprintf("(update to %s)", fixedVersion)
-			} else {
-				fixedVersionMessage = "(no fix available)"
-			}
-
-			ruleID, err := getRuleIDFromTrivySeverity(vuln.Severity)
-			// This should not be possible since we filter out vulnerabilities with unknown severities. Still, it's a failsafe.
+			issue, ok, err := vulnerabilityToIssue(result.Target, toolExecution.SourceDir, vuln, lineByPurl)
 			if err != nil {
 				return nil, err
 			}
-
-			issues = append(
-				issues,
-				codacy.Issue{
-					File:      result.Target,
-					Line:      lineNumberByPurl[purl],
-					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
-					PatternID: ruleID,
-					SourceID:  vuln.VulnerabilityID,
-				},
-			)
+			if ok {
+				issues = append(issues, issue)
+			}
 		}
-
 	}
-
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
 }
 
