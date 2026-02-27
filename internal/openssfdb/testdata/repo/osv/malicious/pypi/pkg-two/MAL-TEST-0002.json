@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.5.0",
+  "id": "MAL-TEST-0002",
+  "modified": "2023-05-15T10:00:00Z",
+  "published": "2023-05-01T09:30:00Z",
+  "summary": "Malicious code in pkg-two (PyPI)",
+  "details": "Pkg-two embeds a reverse shell and downloads additional payloads.",
+  "aliases": [
+    "CVE-2023-9999",
+    "GHSA-2222-bbbb"
+  ],
+  "affected": [
+    {
+      "package": {
+        "ecosystem": "PyPI",
+        "name": "pkg-two"
+      },
+      "ranges": [
+        {
+          "type": "ECOSYSTEM",
+          "events": [
+            {
+              "introduced": "1.0.0"
+            },
+            {
+              "last_affected": "1.3.4"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "type": "ARTICLE",
+      "url": "https://blog.example.com/pkg-two-malware"
+    }
+  ]
+}

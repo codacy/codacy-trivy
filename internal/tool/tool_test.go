@@ -116,7 +116,7 @@ func TestRun(t *testing.T) {
 
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
-			CacheDir: cacheDir,
+			CacheDir: defaultCacheDir,
 		},
 		DBOptions: flag.DBOptions{
 			SkipDBUpdate:     true,
@@ -549,7 +549,7 @@ func TestRunScanFilesystemError(t *testing.T) {
 
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
-			CacheDir: cacheDir,
+			CacheDir: defaultCacheDir,
 		},
 		DBOptions: flag.DBOptions{
 			SkipDBUpdate:     true,
@@ -646,6 +646,12 @@ func TestValidateExecutionConfiguration(t *testing.T) {
 			},
 			errMsg: "Failed to configure Codacy Trivy: configured patterns don't match existing rules (provided [unknown])",
 		},
+		"EOL pattern only": {
+			executionConfiguration: codacy.ToolExecution{
+				Patterns: &[]codacy.Pattern{{ID: ruleIDEOLCritical}},
+			},
+			errMsg: "",
+		},
 	}
 
 	for testName, testData := range testSet {
@@ -654,6 +660,10 @@ func TestValidateExecutionConfiguration(t *testing.T) {
 			err := validateExecutionConfiguration(testData.executionConfiguration)
 
 			// Assert
+			if testData.errMsg == "" {
+				assert.NoError(t, err)
+				return
+			}
 			expectedErr := &ToolError{msg: testData.errMsg}
 			assert.Equal(t, expectedErr, err)
 		})

@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.5.0",
+  "id": "MAL-TEST-0001",
+  "modified": "2024-12-01T00:00:00Z",
+  "published": "2024-11-30T00:00:00Z",
+  "summary": "Malicious code in pkg-one (npm)",
+  "details": "Pkg-one contains a credential stealer that exfiltrates secrets to a remote server.",
+  "aliases": [
+    "GHSA-1111-aaaa"
+  ],
+  "affected": [
+    {
+      "package": {
+        "ecosystem": "npm",
+        "name": "pkg-one"
+      },
+      "versions": [
+        "1.0.0",
+        "1.0.1"
+      ],
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "1.0.2"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "type": "ADVISORY",
+      "url": "https://example.com/advisory/pkg-one"
+    },
+    {
+      "type": "REPORT",
+      "url": "https://example.com/report/pkg-one"
+    }
+  ]
+}

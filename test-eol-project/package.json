@@ -1,0 +1,8 @@
+{
+  "name": "test-eol-project",
+  "version": "1.0.0",
+  "description": "Minimal project with EOL dependencies for testing codacy-trivy EOL scanner",
+  "dependencies": {
+    "protractor": "7.0.0"
+  }
+}

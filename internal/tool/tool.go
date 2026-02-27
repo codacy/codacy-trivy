@@ -34,6 +34,10 @@ const (
 	ruleIDVulnerabilityMedium   string = "vulnerability_medium"
 	ruleIDVulnerabilityMinor    string = "vulnerability_minor"
 	ruleIDMaliciousPackages     string = "malicious_packages"
+	ruleIDEOLCritical           string = "eol_critical"
+	ruleIDEOLHigh               string = "eol_high"
+	ruleIDEOLMedium             string = "eol_medium"
+	ruleIDEOLMinor              string = "eol_minor"
 
 	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
@@ -41,11 +45,22 @@ const (
 	trivySeverityHigh     string = "high"
 	trivySeverityCritical string = "critical"
 
-	cacheDir string = "/dist/cache/codacy-trivy"
+	defaultCacheDir string = "/dist/cache/codacy-trivy"
 )
+
+// getTrivyCacheDir returns the Trivy cache directory (env TRIVY_CACHE_DIR for local runs, else default).
+func getTrivyCacheDir() string {
+	if d := os.Getenv("TRIVY_CACHE_DIR"); d != "" {
+		return d
+	}
+	return defaultCacheDir
+}
 
 // ruleIDsVulnerability contains IDs all rule (or pattern) IDs that find vulnerable dependencies.
 var ruleIDsVulnerability = []string{ruleIDVulnerabilityCritical, ruleIDVulnerabilityHigh, ruleIDVulnerabilityMedium, ruleIDVulnerabilityMinor}
+
+// ruleIDsEOL contains all EOL rule IDs.
+var ruleIDsEOL = []string{ruleIDEOLCritical, ruleIDEOLHigh, ruleIDEOLMedium, ruleIDEOLMinor}
 
 // New creates a new instance of Codacy Trivy.
 func New(maliciousPackagesIndexPath string) (*codacyTrivy, error) {
@@ -53,16 +68,19 @@ func New(maliciousPackagesIndexPath string) (*codacyTrivy, error) {
 	if err != nil {
 		return nil, err
 	}
+	eolScanner := NewEOLScanner(&XeolLibraryRunner{UpdateDB: false})
 
 	return &codacyTrivy{
 		runnerFactory:            &defaultRunnerFactory{},
 		maliciousPackagesScanner: *maliciousPackagesScanner,
+		eolScanner:               eolScanner,
 	}, nil
 }
 
 type codacyTrivy struct {
 	runnerFactory            RunnerFactory
 	maliciousPackagesScanner MaliciousPackagesScanner
+	eolScanner               *EOLScanner
 }
 
 // https://github.com/uber-go/guide/blob/master/style.md#verify-interface-compliance
@@ -77,7 +95,11 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 	// This is the only way to suppress Trivy logs.
 	log.InitLogger(false, true)
 
-	report, err := t.runBaseScan(ctx, toolExecution.SourceDir)
+	patterns := []codacy.Pattern{}
+	if toolExecution.Patterns != nil {
+		patterns = *toolExecution.Patterns
+	}
+	report, err := t.runBaseScan(ctx, toolExecution.SourceDir, patterns)
 	if err != nil {
 		return nil, err
 	}
@@ -96,25 +118,41 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 
 	maliciousPackagesIssues := t.maliciousPackagesScanner.Scan(report, toolExecution)
 
+	var eolIssues []codacy.Result
+	if t.eolScanner != nil {
+		eolIssues = t.eolScanner.Scan(report, toolExecution, &sbom.BOM)
+	}
+
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
 	allIssues = append(allIssues, maliciousPackagesIssues...)
+	allIssues = append(allIssues, eolIssues...)
 	allIssues = append(allIssues, sbom)
 
 	return allIssues, nil
 }
 
 // runBaseScan will run a vulnerability scan that produces a report to be used for SBOM generation or for vulnerability issues.
-func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string) (ptypes.Report, error) {
+// When patterns do not include any vulnerability pattern (EOL-only, secret, malicious), Scanners is left empty so the Trivy vuln DB is not required.
+func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string, patterns []codacy.Pattern) (ptypes.Report, error) {
+	if patterns == nil {
+		patterns = []codacy.Pattern{}
+	}
+	cacheDir := getTrivyCacheDir()
+	vulnerabilityScanningEnabled := lo.SomeBy(patterns, func(p codacy.Pattern) bool {
+		return lo.Contains(ruleIDsVulnerability, p.ID)
+	})
+	// When using a local cache (TRIVY_CACHE_DIR), allow DB update on first run; production image uses skip.
+	skipDBUpdate := cacheDir == defaultCacheDir
+	offlineScan := cacheDir == defaultCacheDir
+	scanners := ptypes.Scanners{ptypes.VulnerabilityScanner}
+	// EOL-only: still use VulnerabilityScanner so report has packages for SBOM; Trivy DB must exist in image (see Dockerfile).
 	config := flag.Options{
 		GlobalOptions: flag.GlobalOptions{
-			// CacheDir needs to be explicitly set and match the directory in the Dockerfile.
-			// The cache dir will contain the pre-downloaded vulnerability DBs.
 			CacheDir: cacheDir,
 		},
 		DBOptions: flag.DBOptions{
-			// Do not try to update vulnerability DBs.
-			SkipDBUpdate:     true,
-			SkipJavaDBUpdate: true,
+			SkipDBUpdate:     skipDBUpdate,
+			SkipJavaDBUpdate: skipDBUpdate,
 		},
 		PackageOptions: flag.PackageOptions{
 			// Only scan libraries not OS packages.
@@ -127,9 +165,9 @@ func (t codacyTrivy) runBaseScan(ctx context.Context, sourceDir string) (ptypes.
 			ListAllPkgs: true,
 		},
 		ScanOptions: flag.ScanOptions{
-			// Do not try to connect to the internet to download vulnerability DBs, for example.
-			OfflineScan: true,
-			Scanners:    ptypes.Scanners{ptypes.VulnerabilityScanner},
+			// Offline when using production cache; allow network when using TRIVY_CACHE_DIR for local runs.
+			OfflineScan: offlineScan,
+			Scanners:    scanners,
 			// Instead of scanning files individually, scan the whole source directory since it's faster.
 			// Then filter issues from files that were not supposed to be analysed.
 			Target: sourceDir,
@@ -311,7 +349,7 @@ func validateExecutionConfiguration(toolExecution codacy.ToolExecution) error {
 	}
 
 	noSupportedPatterns := lo.NoneBy(*toolExecution.Patterns, func(p codacy.Pattern) bool {
-		return p.ID == ruleIDSecret || p.ID == ruleIDMaliciousPackages || lo.Contains(ruleIDsVulnerability, p.ID)
+		return p.ID == ruleIDSecret || p.ID == ruleIDMaliciousPackages || lo.Contains(ruleIDsVulnerability, p.ID) || lo.Contains(ruleIDsEOL, p.ID)
 	})
 	if noSupportedPatterns {
 		patternIDs := lo.Map(*toolExecution.Patterns, func(p codacy.Pattern, _ int) string {
