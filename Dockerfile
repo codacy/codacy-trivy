@@ -32,19 +32,20 @@ RUN apk add --no-cache curl jq xz && \
     rm /tmp/xeol-db.tar.xz
 
 # Download Trivy vuln DB at build time so slim image can run EOL scan (runner still needs DB to init).
+WORKDIR /src/trivy-cache/db
 RUN ORAS_VER=1.1.0 && \
     curl -sSfL "https://github.com/oras-project/oras/releases/download/v${ORAS_VER}/oras_${ORAS_VER}_linux_amd64.tar.gz" -o /tmp/oras.tar.gz && \
     tar -xzf /tmp/oras.tar.gz -C /usr/local/bin oras && rm /tmp/oras.tar.gz && \
-    mkdir -p /src/trivy-cache/db && cd /src/trivy-cache/db && \
+    mkdir -p /src/trivy-cache/db && \
     oras pull ghcr.io/aquasecurity/trivy-db:2 && \
-    (test -f db.tar.gz && tar -xzf db.tar.gz && rm -f db.tar.gz) && \
-    (mv 2/* . 2>/dev/null; rmdir 2 2>/dev/null) || true
+    ( (test -f db.tar.gz && tar -xzf db.tar.gz && rm -f db.tar.gz) || true ) && \
+    ( (test -d 2 && mv 2/* . 2>/dev/null && rmdir 2 2>/dev/null) || true )
 
 # Build eoltest for container verification (optional).
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod \
     go build -o bin/eoltest ./cmd/eoltest
 
-FROM busybox AS full
+FROM busybox:1.36 AS full
 RUN adduser -u 2004 -D docker
 COPY --from=builder --chown=docker:docker /src/bin /dist/bin
 COPY --from=builder --chown=docker:docker /src/docs /docs
@@ -55,7 +56,7 @@ ENV XEOL_DB_CACHE_DIR=/dist/cache/xeol/db
 CMD [ "/dist/bin/codacy-trivy" ]
 
 # Slim: no host cache/openssf; includes Trivy DB + xeol DB for EOL scan. Use: docker build --target slim -t codacy-trivy:eol .
-FROM busybox AS slim
+FROM busybox:1.36 AS slim
 RUN adduser -u 2004 -D docker
 COPY --from=builder --chown=docker:docker /src/bin /dist/bin
 COPY --from=builder --chown=docker:docker /src/docs /docs

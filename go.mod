@@ -18,7 +18,7 @@ require (
 
 require (
 	github.com/anchore/syft v1.10.0
-	github.com/go-git/go-git/v5 v5.16.4
+	github.com/go-git/go-git/v5 v5.16.5
 	github.com/xeol-io/xeol v0.10.8
 )
 

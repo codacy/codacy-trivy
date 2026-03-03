@@ -30,13 +30,13 @@ type XeolLibraryRunner struct {
 }
 
 // Run decodes the SBOM at sbomPath, loads the xeol DB, runs FindEol, and returns eolMatch slice.
-func (r *XeolLibraryRunner) Run(sbomPath string) ([]eolMatch, error) {
+func (r *XeolLibraryRunner) Run(sbomPath string) ([]EolMatch, error) {
 	packages, err := r.packagesFromSBOM(sbomPath)
 	if err != nil {
 		return nil, err
 	}
 	if len(packages) == 0 {
-		return []eolMatch{}, nil
+		return []EolMatch{}, nil
 	}
 
 	store, closer, err := r.loadStore()
@@ -125,14 +125,14 @@ func (r *XeolLibraryRunner) dbConfig() db.Config {
 	}
 }
 
-func libMatchesToEolMatch(m match.Matches) []eolMatch {
-	out := make([]eolMatch, 0, m.Count())
+func libMatchesToEolMatch(m match.Matches) []EolMatch {
+	out := make([]EolMatch, 0, m.Count())
 	for m := range m.Enumerate() {
 		purl := m.Package.PURL
 		if purl == "" {
 			purl = "pkg:generic/" + m.Package.Name + "@" + m.Package.Version
 		}
-		out = append(out, eolMatch{
+		out = append(out, EolMatch{
 			PURL:    purl,
 			Name:    m.Package.Name,
 			Version: m.Package.Version,

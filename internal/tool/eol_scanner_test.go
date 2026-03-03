@@ -57,7 +57,7 @@ func TestSeverityFromEolDate(t *testing.T) {
 }
 
 func TestEOLScanner_Scan_NoPatternEnabled(t *testing.T) {
-	mockRunner := &mockEOLRunner{matches: []eolMatch{
+	mockRunner := &mockEOLRunner{matches: []EolMatch{
 		{PURL: "pkg:npm/lodash@4.17.21", Name: "lodash", Version: "4.17.21", EolDate: "2024-01-01"},
 	}}
 	s := NewEOLScanner(mockRunner)
@@ -92,7 +92,7 @@ func TestEOLScanner_Scan_WithMockRunner(t *testing.T) {
 			},
 		},
 	}
-	mockRunner := &mockEOLRunner{matches: []eolMatch{
+	mockRunner := &mockEOLRunner{matches: []EolMatch{
 		{PURL: purlStr, Name: "lodash", Version: "4.17.21", EolDate: "2024-06-01", CycleID: "4.x"},
 	}}
 	s := NewEOLScanner(mockRunner)
@@ -147,7 +147,7 @@ func TestEOLScanner_Scan_SeverityBands(t *testing.T) {
 		{now.AddDate(1, 0, 0).Format("2006-01-02"), ruleIDEOLMinor},
 	}
 	for _, b := range bands {
-		mockRunner := &mockEOLRunner{matches: []eolMatch{{PURL: purlStr, Name: "pkg", Version: "1.0.0", EolDate: b.eolDate}}}
+		mockRunner := &mockEOLRunner{matches: []EolMatch{{PURL: purlStr, Name: "pkg", Version: "1.0.0", EolDate: b.eolDate}}}
 		s := NewEOLScanner(mockRunner)
 		result := s.Scan(report, te, bom)
 		assert.Len(t, result, 1, "eol date %s should produce one issue", b.eolDate)
@@ -172,7 +172,7 @@ func TestEOLScanner_Scan_FiltersKnownFiles(t *testing.T) {
 			},
 		},
 	}
-	mockRunner := &mockEOLRunner{matches: []eolMatch{
+	mockRunner := &mockEOLRunner{matches: []EolMatch{
 		{PURL: "pkg:npm/eol-pkg@1.0.0", Name: "eol-pkg", Version: "1.0.0", EolDate: "2024-01-01"},
 	}}
 	s := NewEOLScanner(mockRunner)
@@ -229,7 +229,7 @@ func TestEOLScanner_Scan_NoLineNumberBecomesFileError(t *testing.T) {
 	}
 	dir := t.TempDir()
 	// No file with "no-line-pkg" in content -> fallback returns 0
-	mockRunner := &mockEOLRunner{matches: []eolMatch{
+	mockRunner := &mockEOLRunner{matches: []EolMatch{
 		{PURL: purl.ToString(), Name: "no-line-pkg", Version: "1.0.0", EolDate: "2024-01-01"},
 	}}
 	s := NewEOLScanner(mockRunner)
@@ -291,11 +291,11 @@ func TestFindLocationByPackage(t *testing.T) {
 }
 
 type mockEOLRunner struct {
-	matches []eolMatch
+	matches []EolMatch
 	called  bool
 }
 
-func (m *mockEOLRunner) Run(sbomPath string) ([]eolMatch, error) {
+func (m *mockEOLRunner) Run(_ string) ([]EolMatch, error) {
 	m.called = true
 	return m.matches, nil
 }

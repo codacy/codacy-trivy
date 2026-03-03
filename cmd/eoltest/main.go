@@ -92,14 +92,17 @@ func printEOLResults(results []codacy.Result) {
 	printEOLResultsTo(os.Stdout, os.Stderr, results)
 }
 
+func defaultWriter(w, d io.Writer) io.Writer {
+	if w == nil {
+		return d
+	}
+	return w
+}
+
 // printEOLResultsTo is the testable core; if stdout or stderr is nil, os.Stdout or os.Stderr is used.
 func printEOLResultsTo(stdout, stderr io.Writer, results []codacy.Result) {
-	if stdout == nil {
-		stdout = os.Stdout
-	}
-	if stderr == nil {
-		stderr = os.Stderr
-	}
+	stdout = defaultWriter(stdout, os.Stdout)
+	stderr = defaultWriter(stderr, os.Stderr)
 	var count int
 	for _, r := range results {
 		switch v := r.(type) {

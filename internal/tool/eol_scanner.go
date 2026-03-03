@@ -23,11 +23,11 @@ const (
 // EOLRunner runs an EOL scan on an SBOM file and returns matches.
 // Production implementation execs the xeol CLI; tests use a mock.
 type EOLRunner interface {
-	Run(sbomPath string) ([]eolMatch, error)
+	Run(sbomPath string) ([]EolMatch, error)
 }
 
-// eolMatch represents one EOL finding from xeol (package + cycle EOL date).
-type eolMatch struct {
+// EolMatch represents one EOL finding from xeol (package + cycle EOL date).
+type EolMatch struct {
 	PURL     string // package URL for matching to report
 	Name     string
 	Version  string
@@ -95,8 +95,18 @@ func writeSBOMToTemp(bom *cdx.BOM) (sbomPath string, cleanup func(), errResult [
 	return sbomPath, cleanup, nil
 }
 
+func collectIssuesFromMatches(matches []EolMatch, report ptypes.Report, sourceDir string, purlToLocation map[string]pkgLocation) []codacy.Issue {
+	var issues []codacy.Issue
+	for _, m := range matches {
+		if issue, ok := matchToIssue(m, report, sourceDir, purlToLocation); ok {
+			issues = append(issues, issue)
+		}
+	}
+	return issues
+}
+
 // matchToIssue converts one EOL match to a Codacy issue if location can be resolved. Returns (issue, true) or (zero, false).
-func matchToIssue(m eolMatch, report ptypes.Report, sourceDir string, purlToLocation map[string]pkgLocation) (codacy.Issue, bool) {
+func matchToIssue(m EolMatch, report ptypes.Report, sourceDir string, purlToLocation map[string]pkgLocation) (codacy.Issue, bool) {
 	ruleID, err := severityFromEolDate(m.EolDate)
 	if err != nil {
 		return codacy.Issue{}, false
@@ -144,12 +154,7 @@ func (s *EOLScanner) Scan(report ptypes.Report, toolExecution codacy.ToolExecuti
 		return []codacy.Result{codacy.FileError{File: "", Message: fmt.Sprintf("EOL scan failed: %v", err)}}
 	}
 	purlToLocation := buildPURLToLocation(report)
-	var issues []codacy.Issue
-	for _, m := range matches {
-		if issue, ok := matchToIssue(m, report, toolExecution.SourceDir, purlToLocation); ok {
-			issues = append(issues, issue)
-		}
-	}
+	issues := collectIssuesFromMatches(matches, report, toolExecution.SourceDir, purlToLocation)
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files))
 }
 
@@ -226,16 +231,16 @@ type XeolCLIRunner struct {
 }
 
 // Run executes xeol sbom:<path> -o json --lookahead 365d and parses matches.
-func (r *XeolCLIRunner) Run(sbomPath string) ([]eolMatch, error) {
+func (r *XeolCLIRunner) Run(sbomPath string) ([]EolMatch, error) {
 	return runXeolCLI(r.ExecPath, sbomPath, r.Env)
 }
 
 // runXeolCLI is the actual CLI invocation (testable with exec).
-var runXeolCLI = func(execPath, sbomPath string, env []string) ([]eolMatch, error) {
+var runXeolCLI = func(execPath, sbomPath string, env []string) ([]EolMatch, error) {
 	return runXeolCLIImpl(execPath, sbomPath, env)
 }
 
-func runXeolCLIImpl(execPath, sbomPath string, env []string) ([]eolMatch, error) {
+func runXeolCLIImpl(execPath, sbomPath string, env []string) ([]EolMatch, error) {
 	if execPath == "" {
 		execPath = "xeol"
 	}
@@ -254,13 +259,13 @@ func runXeolCLIImpl(execPath, sbomPath string, env []string) ([]eolMatch, error)
 		return nil, fmt.Errorf("xeol exit: %w", err)
 	}
 
-	matches := make([]eolMatch, 0, len(out.Matches))
+	matches := make([]EolMatch, 0, len(out.Matches))
 	for _, m := range out.Matches {
 		purl := m.Package.PURL
 		if purl == "" {
 			purl = "pkg:generic/" + m.Package.Name + "@" + m.Package.Version
 		}
-		matches = append(matches, eolMatch{
+		matches = append(matches, EolMatch{
 			PURL:    purl,
 			Name:    m.Package.Name,
 			Version: m.Package.Version,
