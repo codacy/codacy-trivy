@@ -3,6 +3,7 @@ package tool
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -20,7 +21,7 @@ import (
 	tresult "github.com/aquasecurity/trivy/pkg/result"
 	tcdx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	ptypes "github.com/aquasecurity/trivy/pkg/types"
-	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v8"
 	"github.com/codacy/codacy-trivy/internal"
 	"github.com/package-url/packageurl-go"
 	"github.com/samber/lo"
@@ -104,7 +105,7 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 		return nil, err
 	}
 
-	sbom, err := t.getSBOM(ctx, report)
+	sbom, bom, err := t.getSBOM(ctx, report)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +120,8 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 	maliciousPackagesIssues := t.maliciousPackagesScanner.Scan(report, toolExecution)
 
 	var eolIssues []codacy.Result
-	if t.eolScanner != nil {
-		eolIssues = t.eolScanner.Scan(report, toolExecution, &sbom.BOM)
+	if t.eolScanner != nil && bom != nil {
+		eolIssues = t.eolScanner.Scan(report, toolExecution, bom)
 	}
 
 	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
@@ -272,16 +273,26 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 	return mapIssuesWithoutLineNumber(filterIssuesFromKnownFiles(issues, *toolExecution.Files)), nil
 }
 
-// getSBOM produces a SBOM result from `report`.
-func (t codacyTrivy) getSBOM(ctx context.Context, report ptypes.Report) (codacy.SBOM, error) {
+// getSBOM produces a SBOM result from `report` and returns the BOM for EOL scanning.
+func (t codacyTrivy) getSBOM(ctx context.Context, report ptypes.Report) (codacy.SBOM, *cdx.BOM, error) {
 	marshaler := tcdx.NewMarshaler(internal.TrivyVersion())
 	bom, err := marshaler.MarshalReport(ctx, report)
 	if err != nil {
-		return codacy.SBOM{}, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
+		return codacy.SBOM{}, nil, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
 	}
 
 	unencodeComponents(bom)
-	return codacy.SBOM{BOM: *bom}, nil
+
+	bomStr, err := json.Marshal(bom)
+	if err != nil {
+		return codacy.SBOM{}, nil, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
+	}
+
+	return codacy.SBOM{
+		BomFormat:   codacy.CycloneDXJSON,
+		SpecVersion: bom.SpecVersion.String(),
+		Sbom:        string(bomStr),
+	}, bom, nil
 }
 
 // Running Trivy for secret scanning is not as efficient as running for vulnerability scanning.

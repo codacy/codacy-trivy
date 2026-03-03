@@ -3,7 +3,7 @@ package docgen
 import (
 	"fmt"
 
-	codacy "github.com/codacy/codacy-engine-golang-seed/v6"
+	codacy "github.com/codacy/codacy-engine-golang-seed/v8"
 )
 
 // Rule represents a static code analysis rule that an execution of `codacy-trivy` can trigger.

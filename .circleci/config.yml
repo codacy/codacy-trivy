@@ -7,9 +7,9 @@ orbs:
 references:
   install_trivy_and_download_dbs: &install_trivy_and_download_dbs
     persist_to_workspace: true
-    # https://trivy.dev/docs/v0.68/getting-started/installation/#installing-trivy
+    # https://trivy.dev/docs/v0.69/getting-started/installation/#installing-trivy
     cmd: |
-      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.68.2
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.69.1
       mkdir cache
       ./trivy --cache-dir ./cache image --download-db-only
 
@@ -23,7 +23,7 @@ references:
   build_and_publish_docker: &build_and_publish_docker
     persist_to_workspace: true
     cmd: |
-      docker build --no-cache -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.66.0 .
+      docker build --no-cache -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.69.1 .
       docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
 
 workflows:
