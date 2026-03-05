@@ -1,0 +1,132 @@
+# Automatically create a PR to update the codacy-trivy tool in codacy-tools when there is a new version available.
+#
+# PRs are opened by user codacybeta (https://github.com/orgs/codacy/people/codacybeta), using its AUTO_MERGE_TOKEN.
+name: Bump codacy-trivy version in codacy-tools
+
+on:
+  push:
+    tags:
+      - '[0-9]+\.[0-9]+\.[0-9]+' # matches strict semver: 1.2.3
+
+# ──────────────────────────────────────────────
+# CONFIGURATION
+# ──────────────────────────────────────────────
+env:
+  DEPENDENCY_NAME: "codacy/codacy-trivy"
+  TARGET_REPO: "codacy/codacy-tools"
+  TARGET_REPO_BASE_BRANCH: "master"
+  TARGET_REPO_DEPENDENCIES_FILE_PATH: "docker-list.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  bump-dependency:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Clone the target repo ──────────────────
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          token: ${{ secrets.AUTO_MERGE_TOKEN }}
+          ref: ${{ env.TARGET_REPO_BASE_BRANCH }}
+
+      # ── 2. Create a version bump branch ────────────────
+      - name: Create version bump branch
+        id: branch
+        run: |
+          BRANCH="auto-bump/${{ env.DEPENDENCY_NAME }}-${{ github.ref_name }}"
+          git checkout -b "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      # ── 3. Classify semver bmp ───────────────────
+      - name: Classify semver bump
+        id: semver
+        run: |
+          # Extract current version from the file
+          OLD_VERSION=$(awk -F: -v dep="${{ env.DEPENDENCY_NAME }}" '$1 == dep { print $2 }' "${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}")
+
+          if [[ -z "$OLD_VERSION" ]]; then
+            echo "❌ Could not find current version is — '${{ env.DEPENDENCY_NAME }}' present in ${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}?"
+            exit 1
+          fi
+
+          echo "📊 $OLD_VERSION → ${{ github.ref_name }}"
+
+          OLD_MAJOR=$(echo "$OLD_VERSION" | cut -d. -f1)
+          OLD_MINOR=$(echo "$OLD_VERSION" | cut -d. -f2)
+          NEW_MAJOR=$(echo "${{ github.ref_name }}" | cut -d. -f1)
+          NEW_MINOR=$(echo "${{ github.ref_name }}" | cut -d. -f2)
+
+          if [[ "$NEW_MAJOR" -gt "$OLD_MAJOR" ]]; then
+            SEMVER_UPDATE_TYPE="major"
+          elif [[ "$NEW_MINOR" -gt "$OLD_MINOR" ]]; then
+            SEMVER_UPDATE_TYPE="minor"
+          else
+            SEMVER_UPDATE_TYPE="hotfix"
+          fi
+
+          echo "semver_update_type=$SEMVER_UPDATE_TYPE" >> "$GITHUB_OUTPUT"
+          echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
+          echo "🏷️ Update type: $SEMVER_UPDATE_TYPE"
+
+      # ── 4. Update the dependency version ──────────
+      #
+      #  Assumes lines in docker-list.txt look like:
+      #    codacy/codacy-tool:1.2.3
+      #
+      - name: Bump ${{ env.DEPENDENCY_NAME }} version in ${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}
+        run: |
+          echo "📦 Bumping ${{ env.DEPENDENCY_NAME }} to ${{ github.ref_name }} in ${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}"
+
+          # Escape slashes in the dependency name for sed
+          DEP_ESCAPED=$(echo "${{ env.DEPENDENCY_NAME }}" | sed 's|/|\\/|g')
+
+          # Replace the version after the colon for the matching image
+          sed -i -E "s|^(${DEP_ESCAPED}:)[0-9]+\.[0-9]+\.[0-9]+|\1${{ github.ref_name }}|" "${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}"
+
+          # Verify the change was made
+          if git diff --quiet "${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}"; then
+            echo "❌ No changes made — is '${{ env.DEPENDENCY_NAME }}' present in ${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}?"
+            exit 1
+          fi
+
+          echo ""
+          echo "── diff ──"
+          git diff "${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}"
+
+      # ── 5. Commit & push ──────────────────────────
+      - name: Commit and push
+        run: |
+          git config user.name  "codacybeta"
+          git config user.email "codacybeta@users.noreply.github.com"
+          git add "${{ env.TARGET_REPO_DEPENDENCIES_FILE_PATH }}"
+          git commit -m "bump: ${{ env.DEPENDENCY_NAME }} to ${{ github.ref_name }}"
+          git push origin "${{ steps.branch.outputs.name }}"
+
+      # ── 6. Open the PR ──────────────────
+      - name: Open PR
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+        run: |
+          gh pr create \
+            --repo "${{ env.TARGET_REPO }}" \
+            --base "${{ env.TARGET_REPO_BASE_BRANCH }}" \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "bump: ${{ env.DEPENDENCY_NAME }} to ${{ github.ref_name }}" \
+            --body "$(cat <<'EOF'
+          ## Tool version bump
+
+          | Field | Value |
+          |-------|-------|
+          | **Tool** | ${{ env.DEPENDENCY_NAME }} |
+          | **Update** | ${{ steps.semver.outputs.old_version }} to [${{ github.ref_name }}](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}) |
+          | **Update type** | ${{ steps.semver.outputs.semver_update_type }} |
+          | **Triggered by** | ${{ github.actor }} |
+
+          ---
+          *Opened automatically by the [codacy-tools-auto-bump](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) workflow.*
+          EOF
+          )"
