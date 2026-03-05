@@ -1,6 +1,6 @@
 # Automatically create a PR to update the codacy-trivy tool in codacy-tools when there is a new version available.
 #
-# PRs are opened by user codacybeta (https://github.com/orgs/codacy/people/codacybeta), using its AUTO_MERGE_TOKEN.
+# PRs are opened by user codacybeta (https://github.com/orgs/codacy/people/codacybeta), using its AUTO_TOOLS_BUMP_TOKEN.
 name: Bump codacy-trivy version in codacy-tools
 
 on:
@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ env.TARGET_REPO }}
-          token: ${{ secrets.AUTO_MERGE_TOKEN }}
+          token: ${{ secrets.AUTO_TOOLS_BUMP_TOKEN }}
           ref: ${{ env.TARGET_REPO_BASE_BRANCH }}
 
       # ── 2. Create a version bump branch ────────────────
@@ -109,7 +109,7 @@ jobs:
       # ── 6. Open the PR ──────────────────
       - name: Open PR
         env:
-          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_TOOLS_BUMP_TOKEN }}
         run: |
           gh pr create \
             --repo "${{ env.TARGET_REPO }}" \
