@@ -4,7 +4,7 @@ go 1.25.6
 
 require (
 	github.com/CycloneDX/cyclonedx-go v0.10.0
-	github.com/aquasecurity/trivy v0.69.2 // Also update .circle/config.yml
+	github.com/aquasecurity/trivy v0.69.3 // Also update .circle/config.yml
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
 	github.com/codacy/codacy-engine-golang-seed/v8 v8.0.1
 	github.com/google/go-cmp v0.7.0
