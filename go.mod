@@ -9,7 +9,7 @@ require (
 	github.com/codacy/codacy-engine-golang-seed/v8 v8.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/package-url/packageurl-go v0.1.4
-	github.com/samber/lo v1.52.0
+	github.com/samber/lo v1.53.0
 	github.com/sirupsen/logrus v1.9.4 // Logrus is the logging library used in codacy-engine-golang-seed
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
