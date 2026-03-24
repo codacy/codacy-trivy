@@ -27,7 +27,7 @@ jobs:
     steps:
       # ── 1. Clone the target repo ──────────────────
       - name: Checkout target repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ env.TARGET_REPO }}
           token: ${{ secrets.AUTO_TOOLS_BUMP_TOKEN }}
