@@ -278,20 +278,23 @@ func TestRun(t *testing.T) {
 
 	// Assert
 	if assert.NoError(t, err) {
+		pkg1Chain := `[["type/@namespace/package-1@version+incompatible"]]`
 		expectedIssues := []codacy.Issue{
 			{
-				File:      fileName,
-				Line:      1,
-				PatternID: ruleIDVulnerabilityCritical,
-				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id: vuln title) (update to vuln fixed)",
-				SourceID:  "vuln id",
+				File:        fileName,
+				Line:        1,
+				PatternID:   ruleIDVulnerabilityCritical,
+				Message:     "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id: vuln title) (update to vuln fixed)",
+				SourceID:    "vuln id",
+				ExtraFields: json.RawMessage(`{"CVE":"vuln id","dependenciesChains":` + pkg1Chain + `,"fixVersion":"vuln fixed"}`),
 			},
 			{
-				File:      fileName,
-				Line:      1,
-				PatternID: ruleIDVulnerabilityHigh,
-				Message:   "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id no fixed version: vuln no fixed version) (no fix available)",
-				SourceID:  "vuln id no fixed version",
+				File:        fileName,
+				Line:        1,
+				PatternID:   ruleIDVulnerabilityHigh,
+				Message:     "Insecure dependency type/@namespace/package-1@version+incompatible (vuln id no fixed version: vuln no fixed version) (no fix available)",
+				SourceID:    "vuln id no fixed version",
+				ExtraFields: json.RawMessage(`{"CVE":"vuln id no fixed version","dependenciesChains":` + pkg1Chain + `,"fixVersion":""}`),
 			},
 			{
 				File:      fileName,

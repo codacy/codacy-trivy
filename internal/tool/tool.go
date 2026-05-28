@@ -36,6 +36,9 @@ const (
 	ruleIDVulnerabilityMinor    string = "vulnerability_minor"
 	ruleIDMaliciousPackages     string = "malicious_packages"
 
+	maxDependencyChains   = 10
+	maxDependencyChainLen = 20
+
 	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
 	trivySeverityMedium   string = "medium"
@@ -180,17 +183,20 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 
 	issues := []codacy.Issue{}
 	for _, result := range report.Results {
-		// Make a map for faster lookup
+		// Make maps for faster lookup
 		lineNumberByPurl := map[string]int{}
+		pkgByPurl := map[string]ftypes.Package{}
 		for _, pkg := range result.Packages {
 			if pkg.Identifier.PURL == nil {
 				continue
 			}
+			purl := pkg.Identifier.PURL.ToString()
 			lineNumber := 0
 			if len(pkg.Locations) > 0 {
 				lineNumber = pkg.Locations[0].StartLine
 			}
-			lineNumberByPurl[pkg.Identifier.PURL.ToString()] = lineNumber
+			lineNumberByPurl[purl] = lineNumber
+			pkgByPurl[purl] = pkg
 		}
 
 		// Ensure Trivy only produces results with severities matching the specified patterns.
@@ -230,14 +236,25 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 				return nil, err
 			}
 
+			chains := buildDependencyChains(purl, pkgByPurl)
+			extraFields, err := json.Marshal(map[string]any{
+				"dependenciesChains": chains,
+				"CVE":                vuln.VulnerabilityID,
+				"fixVersion":         fixedVersion,
+			})
+			if err != nil {
+				extraFields = nil
+			}
+
 			issues = append(
 				issues,
 				codacy.Issue{
-					File:      result.Target,
-					Line:      lineNumberByPurl[purl],
-					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
-					PatternID: ruleID,
-					SourceID:  vuln.VulnerabilityID,
+					File:        result.Target,
+					Line:        lineNumberByPurl[purl],
+					Message:     fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
+					PatternID:   ruleID,
+					SourceID:    vuln.VulnerabilityID,
+					ExtraFields: extraFields,
 				},
 			)
 		}
@@ -499,6 +516,53 @@ func unencodeComponents(bom *cdx.BOM) {
 			}
 		}
 	}
+}
+
+// buildDependencyChains enumerates parent chains for a vulnerable PURL via DFS.
+// Each chain is ordered root-most first, vulnerable PURL last.
+// Limits: max maxDependencyChains chains; per-chain length capped at maxDependencyChainLen (tail kept).
+func buildDependencyChains(target string, pkgByPurl map[string]ftypes.Package) [][]string {
+	var out [][]string
+
+	var dfs func(current string, path []string, visited map[string]bool)
+	dfs = func(current string, path []string, visited map[string]bool) {
+		if len(out) >= maxDependencyChains {
+			return
+		}
+		if visited[current] {
+			return
+		}
+		visited[current] = true
+		defer delete(visited, current)
+
+		pkg, ok := pkgByPurl[current]
+		name := purlPrettyPrint(*pkg.Identifier.PURL)
+		if !ok {
+			name = current
+		}
+		path = append([]string{name}, path...)
+
+		if !ok || len(pkg.DependsOn) == 0 {
+			out = append(out, trimChainTail(path, maxDependencyChainLen))
+			return
+		}
+		for _, parent := range pkg.DependsOn {
+			if len(out) >= maxDependencyChains {
+				return
+			}
+			dfs(parent, path, visited)
+		}
+	}
+
+	dfs(target, nil, map[string]bool{})
+	return out
+}
+
+func trimChainTail(chain []string, max int) []string {
+	if len(chain) <= max {
+		return chain
+	}
+	return chain[len(chain)-max:]
 }
 
 // Remove the pkg: prefix and url-decode the PURL for display purposes.
