@@ -183,20 +183,17 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 
 	issues := []codacy.Issue{}
 	for _, result := range report.Results {
-		// Make maps for faster lookup
+		// Make a map for faster lookup
 		lineNumberByPurl := map[string]int{}
-		pkgByPurl := map[string]ftypes.Package{}
 		for _, pkg := range result.Packages {
 			if pkg.Identifier.PURL == nil {
 				continue
 			}
-			purl := pkg.Identifier.PURL.ToString()
 			lineNumber := 0
 			if len(pkg.Locations) > 0 {
 				lineNumber = pkg.Locations[0].StartLine
 			}
-			lineNumberByPurl[purl] = lineNumber
-			pkgByPurl[purl] = pkg
+			lineNumberByPurl[pkg.Identifier.PURL.ToString()] = lineNumber
 		}
 
 		// Ensure Trivy only produces results with severities matching the specified patterns.
@@ -236,7 +233,7 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 				return nil, err
 			}
 
-			chains := buildDependencyChains(purl, pkgByPurl)
+			chains := buildDependencyChains(purl, result.Packages)
 			extraFields, err := json.Marshal(map[string]any{
 				"dependenciesChains": chains,
 				"CVE":                vuln.VulnerabilityID,
@@ -518,43 +515,69 @@ func unencodeComponents(bom *cdx.BOM) {
 	}
 }
 
-// buildDependencyChains enumerates parent chains for a vulnerable PURL via DFS.
-// Each chain is ordered root-most first, vulnerable PURL last.
+// buildDependencyChains enumerates root-to-vulnerable chains for a vulnerable PURL via DFS.
+// Each chain is ordered root-most first, vulnerable package last.
+// DependsOn in Trivy lists a package's children (what it depends on). To find parents
+// (what depends on the vulnerable package), we build an inverted map keyed by UID.
 // Limits: max maxDependencyChains chains; per-chain length capped at maxDependencyChainLen (tail kept).
-func buildDependencyChains(target string, pkgByPurl map[string]ftypes.Package) [][]string {
-	var out [][]string
+func buildDependencyChains(targetPURL string, packages []ftypes.Package) [][]string {
+	// Map from UID to package for name resolution.
+	pkgByUID := make(map[string]ftypes.Package, len(packages))
+	// Inverted map: child UID -> parent UIDs (packages that depend on this child).
+	parentsByUID := make(map[string][]string)
+	targetUID := ""
 
-	var dfs func(current string, path []string, visited map[string]bool)
-	dfs = func(current string, path []string, visited map[string]bool) {
-		if len(out) >= maxDependencyChains {
-			return
+	for _, pkg := range packages {
+		uid := pkg.Identifier.UID
+		pkgByUID[uid] = pkg
+		if pkg.Identifier.PURL != nil && pkg.Identifier.PURL.ToString() == targetPURL {
+			targetUID = uid
 		}
-		if visited[current] {
-			return
-		}
-		visited[current] = true
-		defer delete(visited, current)
-
-		pkg, ok := pkgByPurl[current]
-		name := purlPrettyPrint(*pkg.Identifier.PURL)
-		if !ok {
-			name = current
-		}
-		path = append([]string{name}, path...)
-
-		if !ok || len(pkg.DependsOn) == 0 {
-			out = append(out, trimChainTail(path, maxDependencyChainLen))
-			return
-		}
-		for _, parent := range pkg.DependsOn {
-			if len(out) >= maxDependencyChains {
-				return
-			}
-			dfs(parent, path, visited)
+		for _, depUID := range pkg.DependsOn {
+			parentsByUID[depUID] = append(parentsByUID[depUID], uid)
 		}
 	}
 
-	dfs(target, nil, map[string]bool{})
+	if targetUID == "" {
+		return nil
+	}
+
+	var out [][]string
+
+	var dfs func(currentUID string, path []string, visited map[string]bool)
+	dfs = func(currentUID string, path []string, visited map[string]bool) {
+		if len(out) >= maxDependencyChains {
+			return
+		}
+		if visited[currentUID] {
+			return
+		}
+		visited[currentUID] = true
+		defer delete(visited, currentUID)
+
+		pkg, ok := pkgByUID[currentUID]
+		var name string
+		if ok && pkg.Identifier.PURL != nil {
+			name = purlPrettyPrint(*pkg.Identifier.PURL)
+		} else {
+			name = currentUID
+		}
+		path = append([]string{name}, path...)
+
+		parents := parentsByUID[currentUID]
+		if len(parents) == 0 {
+			out = append(out, trimChainTail(path, maxDependencyChainLen))
+			return
+		}
+		for _, parentUID := range parents {
+			if len(out) >= maxDependencyChains {
+				return
+			}
+			dfs(parentUID, path, visited)
+		}
+	}
+
+	dfs(targetUID, nil, map[string]bool{})
 	return out
 }
 
