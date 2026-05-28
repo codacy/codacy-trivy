@@ -569,11 +569,16 @@ func buildDependencyChains(targetPURL string, packages []ftypes.Package) [][]str
 			out = append(out, trimChainTail(path, maxDependencyChainLen))
 			return
 		}
+		before := len(out)
 		for _, parentUID := range parents {
 			if len(out) >= maxDependencyChains {
 				return
 			}
 			dfs(parentUID, path, visited)
+		}
+		// All parent branches were blocked by cycle detection — treat current node as root.
+		if len(out) == before {
+			out = append(out, trimChainTail(path, maxDependencyChainLen))
 		}
 	}
 

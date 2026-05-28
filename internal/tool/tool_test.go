@@ -909,6 +909,200 @@ func TestPurlPrettyPrint(t *testing.T) {
 	assert.Equal(t, "type/namespace/name@1.2.0+incompatible", ppp)
 }
 
+func makePkg(uid string, purl *packageurl.PackageURL, dependsOn ...string) ftypes.Package {
+	return ftypes.Package{
+		Identifier: ftypes.PkgIdentifier{
+			UID:  uid,
+			PURL: purl,
+		},
+		DependsOn: dependsOn,
+	}
+}
+
+func newPURL(pkgType, namespace, name, version string) *packageurl.PackageURL {
+	return packageurl.NewPackageURL(pkgType, namespace, name, version, nil, "")
+}
+
+func TestBuildDependencyChains(t *testing.T) {
+	type testData struct {
+		packages    []ftypes.Package
+		targetPURL  string
+		expected    [][]string
+	}
+
+	vulnPURL := newPURL("npm", "", "vuln-pkg", "1.0.0")
+	parentPURL := newPURL("npm", "", "parent-pkg", "2.0.0")
+	grandparentPURL := newPURL("npm", "", "grandparent-pkg", "3.0.0")
+	sibling1PURL := newPURL("npm", "", "sibling-1", "1.0.0")
+	sibling2PURL := newPURL("npm", "", "sibling-2", "1.0.0")
+
+	vulnUID := vulnPURL.String()
+	parentUID := parentPURL.String()
+	grandparentUID := grandparentPURL.String()
+	sibling1UID := sibling1PURL.String()
+	sibling2UID := sibling2PURL.String()
+
+	testSet := map[string]testData{
+		"direct dependency — no parents, single-element chain": {
+			packages: []ftypes.Package{
+				makePkg(vulnUID, vulnPURL),
+			},
+			targetPURL: vulnUID,
+			expected:   [][]string{{"npm/vuln-pkg@1.0.0"}},
+		},
+		"single transitive chain — one parent": {
+			packages: []ftypes.Package{
+				makePkg(vulnUID, vulnPURL),
+				makePkg(parentUID, parentPURL, vulnUID),
+			},
+			targetPURL: vulnUID,
+			expected:   [][]string{{"npm/parent-pkg@2.0.0", "npm/vuln-pkg@1.0.0"}},
+		},
+		"deep transitive chain — two ancestors": {
+			packages: []ftypes.Package{
+				makePkg(vulnUID, vulnPURL),
+				makePkg(parentUID, parentPURL, vulnUID),
+				makePkg(grandparentUID, grandparentPURL, parentUID),
+			},
+			targetPURL: vulnUID,
+			expected:   [][]string{{"npm/grandparent-pkg@3.0.0", "npm/parent-pkg@2.0.0", "npm/vuln-pkg@1.0.0"}},
+		},
+		"multiple paths to root — two chains": {
+			packages: []ftypes.Package{
+				makePkg(vulnUID, vulnPURL),
+				makePkg(sibling1UID, sibling1PURL, vulnUID),
+				makePkg(sibling2UID, sibling2PURL, vulnUID),
+			},
+			targetPURL: vulnUID,
+			expected: [][]string{
+				{"npm/sibling-1@1.0.0", "npm/vuln-pkg@1.0.0"},
+				{"npm/sibling-2@1.0.0", "npm/vuln-pkg@1.0.0"},
+			},
+		},
+		"target PURL not found — returns nil": {
+			packages: []ftypes.Package{
+				makePkg(parentUID, parentPURL, vulnUID),
+			},
+			targetPURL: vulnUID,
+			expected:   nil,
+		},
+		"package without PURL — falls back to UID as name": {
+			packages: []ftypes.Package{
+				makePkg(vulnUID, vulnPURL),
+				makePkg("no-purl-root", nil, vulnUID),
+			},
+			targetPURL: vulnUID,
+			expected:   [][]string{{"no-purl-root", "npm/vuln-pkg@1.0.0"}},
+		},
+		"max chains limit — stops at 10": {
+			packages: func() []ftypes.Package {
+				pkgs := []ftypes.Package{makePkg(vulnUID, vulnPURL)}
+				for i := 0; i < 15; i++ {
+					uid := fmt.Sprintf("root-%d", i)
+					pkgs = append(pkgs, makePkg(uid, nil, vulnUID))
+				}
+				return pkgs
+			}(),
+			targetPURL: vulnUID,
+			expected: func() [][]string {
+				var chains [][]string
+				for i := 0; i < maxDependencyChains; i++ {
+					chains = append(chains, []string{fmt.Sprintf("root-%d", i), "npm/vuln-pkg@1.0.0"})
+				}
+				return chains
+			}(),
+		},
+	}
+
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			result := buildDependencyChains(testData.targetPURL, testData.packages)
+			assert.Equal(t, testData.expected, result)
+		})
+	}
+}
+
+func TestBuildDependencyChains_CycleTerminates(t *testing.T) {
+	vulnPURL := newPURL("npm", "", "vuln-pkg", "1.0.0")
+	sibling1PURL := newPURL("npm", "", "sibling-1", "1.0.0")
+	sibling2PURL := newPURL("npm", "", "sibling-2", "1.0.0")
+	vulnUID := vulnPURL.String()
+	sibling1UID := sibling1PURL.String()
+	sibling2UID := sibling2PURL.String()
+
+	// sibling1 and sibling2 mutually depend on each other, both depend on vuln
+	packages := []ftypes.Package{
+		makePkg(vulnUID, vulnPURL),
+		makePkg(sibling1UID, sibling1PURL, vulnUID, sibling2UID),
+		makePkg(sibling2UID, sibling2PURL, vulnUID, sibling1UID),
+	}
+
+	result := buildDependencyChains(vulnUID, packages)
+
+	// Cycle guard must prevent infinite loop; exactly 2 finite chains produced
+	assert.Len(t, result, 2)
+	for _, chain := range result {
+		// Each chain must end with the vulnerable package
+		assert.Equal(t, "npm/vuln-pkg@1.0.0", chain[len(chain)-1])
+		// Chain is finite (cycle broken, so length <= 3 for this graph)
+		assert.LessOrEqual(t, len(chain), 3)
+	}
+}
+
+func TestBuildDependencyChains_ChainLengthTrimmed(t *testing.T) {
+	// Build a linear chain 25 nodes deep: root -> n1 -> n2 -> ... -> vuln
+	vulnPURL := newPURL("npm", "", "vuln-pkg", "1.0.0")
+	vulnUID := vulnPURL.String()
+
+	packages := []ftypes.Package{makePkg(vulnUID, vulnPURL)}
+	prevUID := vulnUID
+	for i := 0; i < 25; i++ {
+		uid := fmt.Sprintf("ancestor-%d", i)
+		packages = append(packages, makePkg(uid, nil, prevUID))
+		prevUID = uid
+	}
+
+	result := buildDependencyChains(vulnUID, packages)
+	if assert.Len(t, result, 1) {
+		chain := result[0]
+		assert.Len(t, chain, maxDependencyChainLen, "chain should be trimmed to maxDependencyChainLen")
+		assert.Equal(t, "npm/vuln-pkg@1.0.0", chain[len(chain)-1], "vulnerable package must be last")
+	}
+}
+
+func TestTrimChainTail(t *testing.T) {
+	type testData struct {
+		chain    []string
+		max      int
+		expected []string
+	}
+
+	testSet := map[string]testData{
+		"chain shorter than max — returned unchanged": {
+			chain:    []string{"a", "b", "c"},
+			max:      5,
+			expected: []string{"a", "b", "c"},
+		},
+		"chain equal to max — returned unchanged": {
+			chain:    []string{"a", "b", "c"},
+			max:      3,
+			expected: []string{"a", "b", "c"},
+		},
+		"chain longer than max — tail kept": {
+			chain:    []string{"a", "b", "c", "d", "e"},
+			max:      3,
+			expected: []string{"c", "d", "e"},
+		},
+	}
+
+	for testName, testData := range testSet {
+		t.Run(testName, func(t *testing.T) {
+			result := trimChainTail(testData.chain, testData.max)
+			assert.Equal(t, testData.expected, result)
+		})
+	}
+}
+
 type mockRunnerFactory struct {
 	mockRunner artifact.Runner
 }
