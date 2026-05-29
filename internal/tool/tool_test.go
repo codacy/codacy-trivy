@@ -148,6 +148,7 @@ func TestRun(t *testing.T) {
 				Target: fileName,
 				Packages: ftypes.Packages{
 					{
+						ID: "package-1@version+incompatible",
 						Locations: []ftypes.Location{
 							{
 								StartLine: 1,
@@ -182,6 +183,7 @@ func TestRun(t *testing.T) {
 					// Will generate an issue
 					{
 						VulnerabilityID: "vuln id",
+						PkgID:           "package-1@version+incompatible",
 						Vulnerability: dbtypes.Vulnerability{
 							Severity: "CRITICAL",
 							Title:    "vuln title",
@@ -194,6 +196,7 @@ func TestRun(t *testing.T) {
 					// Will generate an issue
 					{
 						VulnerabilityID: "vuln id no fixed version",
+						PkgID:           "package-1@version+incompatible",
 						Vulnerability: dbtypes.Vulnerability{
 							Severity: "HIGH",
 							Title:    "vuln no fixed version",
@@ -390,9 +393,14 @@ func TestRun(t *testing.T) {
 					Properties: &[]cyclonedx.Property{},
 				},
 				{
-					BOMRef:     "pkg:type/@namespace/package-1@version+incompatible",
-					Type:       "library",
-					Properties: &[]cyclonedx.Property{},
+					BOMRef: "pkg:type/@namespace/package-1@version+incompatible",
+					Type:   "library",
+					Properties: &[]cyclonedx.Property{
+						{
+							Name:  "aquasecurity:trivy:PkgID",
+							Value: "package-1@version+incompatible",
+						},
+					},
 					PackageURL: "pkg:type/@namespace/package-1@version+incompatible",
 					Version:    "version+incompatible",
 				},
@@ -909,10 +917,16 @@ func TestPurlPrettyPrint(t *testing.T) {
 	assert.Equal(t, "type/namespace/name@1.2.0+incompatible", ppp)
 }
 
-func makePkg(uid string, purl *packageurl.PackageURL, dependsOn ...string) ftypes.Package {
+// makePkg builds a Trivy package the way real scans do: the dependency graph (DependsOn,
+// and the targetID passed to buildDependencyChains) is keyed by Package.ID, while
+// Identifier.UID is a separate calculated hash. We deliberately set UID to a value
+// DISTINCT from ID ("uid-"+id) so any code that mistakenly keys the graph by UID instead
+// of ID fails these tests.
+func makePkg(id string, purl *packageurl.PackageURL, dependsOn ...string) ftypes.Package {
 	return ftypes.Package{
+		ID: id,
 		Identifier: ftypes.PkgIdentifier{
-			UID:  uid,
+			UID:  "uid-" + id,
 			PURL: purl,
 		},
 		DependsOn: dependsOn,
@@ -923,11 +937,17 @@ func newPURL(pkgType, namespace, name, version string) *packageurl.PackageURL {
 	return packageurl.NewPackageURL(pkgType, namespace, name, version, nil, "")
 }
 
+// chainsFor precomputes the graph (as production does once per result) then resolves chains.
+func chainsFor(targetID string, packages []ftypes.Package) [][]string {
+	pkgByID, parentsByID := buildPackageGraph(packages)
+	return buildDependencyChains(targetID, pkgByID, parentsByID)
+}
+
 func TestBuildDependencyChains(t *testing.T) {
 	type testData struct {
-		packages    []ftypes.Package
-		targetPURL  string
-		expected    [][]string
+		packages []ftypes.Package
+		targetID string
+		expected [][]string
 	}
 
 	vulnPURL := newPURL("npm", "", "vuln-pkg", "1.0.0")
@@ -936,74 +956,74 @@ func TestBuildDependencyChains(t *testing.T) {
 	sibling1PURL := newPURL("npm", "", "sibling-1", "1.0.0")
 	sibling2PURL := newPURL("npm", "", "sibling-2", "1.0.0")
 
-	vulnUID := vulnPURL.String()
-	parentUID := parentPURL.String()
-	grandparentUID := grandparentPURL.String()
-	sibling1UID := sibling1PURL.String()
-	sibling2UID := sibling2PURL.String()
+	// Package.ID values — what DependsOn and vuln.PkgID reference (name@version).
+	vulnID := "vuln-pkg@1.0.0"
+	parentID := "parent-pkg@2.0.0"
+	grandparentID := "grandparent-pkg@3.0.0"
+	sibling1ID := "sibling-1@1.0.0"
+	sibling2ID := "sibling-2@1.0.0"
 
 	testSet := map[string]testData{
 		"direct dependency — no parents, single-element chain": {
 			packages: []ftypes.Package{
-				makePkg(vulnUID, vulnPURL),
+				makePkg(vulnID, vulnPURL),
 			},
-			targetPURL: vulnUID,
-			expected:   [][]string{{"npm/vuln-pkg@1.0.0"}},
+			targetID: vulnID,
+			expected: [][]string{{"npm/vuln-pkg@1.0.0"}},
 		},
 		"single transitive chain — one parent": {
 			packages: []ftypes.Package{
-				makePkg(vulnUID, vulnPURL),
-				makePkg(parentUID, parentPURL, vulnUID),
+				makePkg(vulnID, vulnPURL),
+				makePkg(parentID, parentPURL, vulnID),
 			},
-			targetPURL: vulnUID,
-			expected:   [][]string{{"npm/parent-pkg@2.0.0", "npm/vuln-pkg@1.0.0"}},
+			targetID: vulnID,
+			expected: [][]string{{"npm/parent-pkg@2.0.0", "npm/vuln-pkg@1.0.0"}},
 		},
 		"deep transitive chain — two ancestors": {
 			packages: []ftypes.Package{
-				makePkg(vulnUID, vulnPURL),
-				makePkg(parentUID, parentPURL, vulnUID),
-				makePkg(grandparentUID, grandparentPURL, parentUID),
+				makePkg(vulnID, vulnPURL),
+				makePkg(parentID, parentPURL, vulnID),
+				makePkg(grandparentID, grandparentPURL, parentID),
 			},
-			targetPURL: vulnUID,
-			expected:   [][]string{{"npm/grandparent-pkg@3.0.0", "npm/parent-pkg@2.0.0", "npm/vuln-pkg@1.0.0"}},
+			targetID: vulnID,
+			expected: [][]string{{"npm/grandparent-pkg@3.0.0", "npm/parent-pkg@2.0.0", "npm/vuln-pkg@1.0.0"}},
 		},
 		"multiple paths to root — two chains": {
 			packages: []ftypes.Package{
-				makePkg(vulnUID, vulnPURL),
-				makePkg(sibling1UID, sibling1PURL, vulnUID),
-				makePkg(sibling2UID, sibling2PURL, vulnUID),
+				makePkg(vulnID, vulnPURL),
+				makePkg(sibling1ID, sibling1PURL, vulnID),
+				makePkg(sibling2ID, sibling2PURL, vulnID),
 			},
-			targetPURL: vulnUID,
+			targetID: vulnID,
 			expected: [][]string{
 				{"npm/sibling-1@1.0.0", "npm/vuln-pkg@1.0.0"},
 				{"npm/sibling-2@1.0.0", "npm/vuln-pkg@1.0.0"},
 			},
 		},
-		"target PURL not found — returns nil": {
+		"target ID not found — returns nil": {
 			packages: []ftypes.Package{
-				makePkg(parentUID, parentPURL, vulnUID),
+				makePkg(parentID, parentPURL, vulnID),
 			},
-			targetPURL: vulnUID,
-			expected:   nil,
+			targetID: vulnID,
+			expected: nil,
 		},
-		"package without PURL — falls back to UID as name": {
+		"package without PURL — falls back to Package.ID as name": {
 			packages: []ftypes.Package{
-				makePkg(vulnUID, vulnPURL),
-				makePkg("no-purl-root", nil, vulnUID),
+				makePkg(vulnID, vulnPURL),
+				makePkg("no-purl-root", nil, vulnID),
 			},
-			targetPURL: vulnUID,
-			expected:   [][]string{{"no-purl-root", "npm/vuln-pkg@1.0.0"}},
+			targetID: vulnID,
+			expected: [][]string{{"no-purl-root", "npm/vuln-pkg@1.0.0"}},
 		},
 		"max chains limit — stops at 10": {
 			packages: func() []ftypes.Package {
-				pkgs := []ftypes.Package{makePkg(vulnUID, vulnPURL)}
+				pkgs := []ftypes.Package{makePkg(vulnID, vulnPURL)}
 				for i := 0; i < 15; i++ {
-					uid := fmt.Sprintf("root-%d", i)
-					pkgs = append(pkgs, makePkg(uid, nil, vulnUID))
+					pkgs = append(pkgs, makePkg(fmt.Sprintf("root-%d", i), nil, vulnID))
 				}
 				return pkgs
 			}(),
-			targetPURL: vulnUID,
+			targetID: vulnID,
 			expected: func() [][]string {
 				var chains [][]string
 				for i := 0; i < maxDependencyChains; i++ {
@@ -1016,7 +1036,7 @@ func TestBuildDependencyChains(t *testing.T) {
 
 	for testName, testData := range testSet {
 		t.Run(testName, func(t *testing.T) {
-			result := buildDependencyChains(testData.targetPURL, testData.packages)
+			result := chainsFor(testData.targetID, testData.packages)
 			assert.Equal(t, testData.expected, result)
 		})
 	}
@@ -1026,18 +1046,18 @@ func TestBuildDependencyChains_CycleTerminates(t *testing.T) {
 	vulnPURL := newPURL("npm", "", "vuln-pkg", "1.0.0")
 	sibling1PURL := newPURL("npm", "", "sibling-1", "1.0.0")
 	sibling2PURL := newPURL("npm", "", "sibling-2", "1.0.0")
-	vulnUID := vulnPURL.String()
-	sibling1UID := sibling1PURL.String()
-	sibling2UID := sibling2PURL.String()
+	vulnID := "vuln-pkg@1.0.0"
+	sibling1ID := "sibling-1@1.0.0"
+	sibling2ID := "sibling-2@1.0.0"
 
 	// sibling1 and sibling2 mutually depend on each other, both depend on vuln
 	packages := []ftypes.Package{
-		makePkg(vulnUID, vulnPURL),
-		makePkg(sibling1UID, sibling1PURL, vulnUID, sibling2UID),
-		makePkg(sibling2UID, sibling2PURL, vulnUID, sibling1UID),
+		makePkg(vulnID, vulnPURL),
+		makePkg(sibling1ID, sibling1PURL, vulnID, sibling2ID),
+		makePkg(sibling2ID, sibling2PURL, vulnID, sibling1ID),
 	}
 
-	result := buildDependencyChains(vulnUID, packages)
+	result := chainsFor(vulnID, packages)
 
 	// Cycle guard must prevent infinite loop; exactly 2 finite chains produced
 	assert.Len(t, result, 2)
@@ -1052,22 +1072,41 @@ func TestBuildDependencyChains_CycleTerminates(t *testing.T) {
 func TestBuildDependencyChains_ChainLengthTrimmed(t *testing.T) {
 	// Build a linear chain 25 nodes deep: root -> n1 -> n2 -> ... -> vuln
 	vulnPURL := newPURL("npm", "", "vuln-pkg", "1.0.0")
-	vulnUID := vulnPURL.String()
+	vulnID := "vuln-pkg@1.0.0"
 
-	packages := []ftypes.Package{makePkg(vulnUID, vulnPURL)}
-	prevUID := vulnUID
+	packages := []ftypes.Package{makePkg(vulnID, vulnPURL)}
+	prevID := vulnID
 	for i := 0; i < 25; i++ {
-		uid := fmt.Sprintf("ancestor-%d", i)
-		packages = append(packages, makePkg(uid, nil, prevUID))
-		prevUID = uid
+		id := fmt.Sprintf("ancestor-%d", i)
+		packages = append(packages, makePkg(id, nil, prevID))
+		prevID = id
 	}
 
-	result := buildDependencyChains(vulnUID, packages)
+	result := chainsFor(vulnID, packages)
 	if assert.Len(t, result, 1) {
 		chain := result[0]
 		assert.Len(t, chain, maxDependencyChainLen, "chain should be trimmed to maxDependencyChainLen")
 		assert.Equal(t, "npm/vuln-pkg@1.0.0", chain[len(chain)-1], "vulnerable package must be last")
 	}
+}
+
+// TestBuildDependencyChains_GraphKeyedByPackageID is the regression test for the key-space
+// bug: Trivy's DependsOn references Package.ID, NOT Identifier.UID. With UID set to a value
+// distinct from ID, a UID-keyed implementation finds no parents and collapses this to a
+// single-element chain. The correct ID-keyed implementation yields the full transitive chain.
+func TestBuildDependencyChains_GraphKeyedByPackageID(t *testing.T) {
+	vulnPURL := newPURL("npm", "", "vuln-pkg", "1.0.0")
+	rootPURL := newPURL("npm", "", "root-app", "1.0.0")
+	vulnID := "vuln-pkg@1.0.0"
+	rootID := "root-app@1.0.0"
+
+	packages := []ftypes.Package{
+		makePkg(vulnID, vulnPURL),
+		makePkg(rootID, rootPURL, vulnID),
+	}
+
+	result := chainsFor(vulnID, packages)
+	assert.Equal(t, [][]string{{"npm/root-app@1.0.0", "npm/vuln-pkg@1.0.0"}}, result)
 }
 
 func TestTrimChainTail(t *testing.T) {
