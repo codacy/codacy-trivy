@@ -9,7 +9,8 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-DOCS_DIR = Path("docs/multiple-tests")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DOCS_DIR = REPO_ROOT / "docs/multiple-tests"
 IMAGE = "codacy-trivy:latest"
 
 
@@ -23,7 +24,7 @@ def list_files(src_dir: Path) -> list[str]:
     files = []
     for p in sorted(src_dir.rglob("*")):
         if p.is_file():
-            files.append(str(p.relative_to(src_dir)))
+            files.append(p.relative_to(src_dir).as_posix())
     return files
 
 
@@ -38,6 +39,7 @@ def run_tool(src_dir: Path, patterns: list[str]) -> list[dict]:
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".codacyrc", delete=False) as f:
         json.dump(codacyrc, f)
+        f.flush()
         rc_path = f.name
 
     try:
@@ -104,12 +106,12 @@ def write_results_xml(issues: list[dict], output_file: Path):
             message = escape_xml(issue.get("message", ""))
             pattern_id = issue.get("patternId", "")
             severity = PATTERN_SEVERITY.get(pattern_id, "warning")
-            lines.append(f'        <error')
+            lines.append('        <error')
             lines.append(f'            source="{pattern_id}"')
             lines.append(f'            line="{line}"')
             lines.append(f'            message="{message}"')
             lines.append(f'            severity="{severity}"')
-            lines.append(f'        />')
+            lines.append('        />')
         lines.append('    </file>')
     lines.append('</checkstyle>')
 
