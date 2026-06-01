@@ -60,8 +60,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/CycloneDX/cyclonedx-go v0.10.0 h1:7xyklU7YD+CUyGzSFIARG18NYLsKVn4QFg04qSsu+7Y=
-github.com/CycloneDX/cyclonedx-go v0.10.0/go.mod h1:vUvbCXQsEm48OI6oOlanxstwNByXjCZ2wuleUlwGEO8=
+github.com/CycloneDX/cyclonedx-go v0.11.0 h1:GokP8FiRC+foiuwWhSSLpSD5H4hSWtGnR3wo7apkBFI=
+github.com/CycloneDX/cyclonedx-go v0.11.0/go.mod h1:vUvbCXQsEm48OI6oOlanxstwNByXjCZ2wuleUlwGEO8=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
@@ -241,8 +241,6 @@ github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJ
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
 github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5 h1:6xNmx7iTtyBRev0+D/Tv1FZd4SCg8axKApyNyRsAt/w=
 github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5/go.mod h1:KdCmV+x/BuvyMxRnYBlmVaq4OLiKW6iRQfvC62cvdkI=
-github.com/codacy/codacy-engine-golang-seed/v8 v8.0.2 h1:zWl/pb6vbShqSWRjaisFdX2HJF4HosL//9JsDMnCCNM=
-github.com/codacy/codacy-engine-golang-seed/v8 v8.0.2/go.mod h1:5ILW/DZUg28afocIekbbnLEKEkBNyFx0ayrIKS/3TKg=
 github.com/codacy/codacy-engine-golang-seed/v8 v8.0.4 h1:L0SDrJX5/N7eXnxwOWUXl4xcorSxX5Q9ercowiaW9fI=
 github.com/codacy/codacy-engine-golang-seed/v8 v8.0.4/go.mod h1:5ILW/DZUg28afocIekbbnLEKEkBNyFx0ayrIKS/3TKg=
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUoc7Ik9EfrFqcylYqgPZ9ANSbTAntnE=
