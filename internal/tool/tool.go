@@ -36,6 +36,9 @@ const (
 	ruleIDVulnerabilityMinor    string = "vulnerability_minor"
 	ruleIDMaliciousPackages     string = "malicious_packages"
 
+	maxDependencyChains   = 10
+	maxDependencyChainLen = 20
+
 	// See https://aquasecurity.github.io/trivy/v0.59/docs/scanner/vulnerability/#severity-selection
 	trivySeverityLow      string = "low"
 	trivySeverityMedium   string = "medium"
@@ -199,6 +202,11 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 			return nil, &ToolError{msg: "Failed to run Codacy Trivy", w: err}
 		}
 
+		// Precompute the dependency graph once per result (static across vulnerabilities).
+		// Keyed by Package.ID — that is what Trivy's DependsOn references
+		// (pkg/dependency/id.go: "The package ID is used to construct the dependency graph").
+		pkgByID, parentsByID := buildPackageGraph(result.Packages)
+
 		for _, vuln := range result.Vulnerabilities {
 			// Skip vulnerabilities without a valid PURL to avoid panic
 			// This can happen when Trivy detects vulnerabilities in packages that don't have
@@ -230,14 +238,25 @@ func (t codacyTrivy) getVulnerabilities(ctx context.Context, report ptypes.Repor
 				return nil, err
 			}
 
+			chains := buildDependencyChains(vuln.PkgID, pkgByID, parentsByID)
+			extraFields, err := json.Marshal(map[string]any{
+				"dependenciesChains": chains,
+				"CVE":                vuln.VulnerabilityID,
+				"fixVersion":         fixedVersion,
+			})
+			if err != nil {
+				extraFields = nil
+			}
+
 			issues = append(
 				issues,
 				codacy.Issue{
-					File:      result.Target,
-					Line:      lineNumberByPurl[purl],
-					Message:   fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
-					PatternID: ruleID,
-					SourceID:  vuln.VulnerabilityID,
+					File:        result.Target,
+					Line:        lineNumberByPurl[purl],
+					Message:     fmt.Sprintf("Insecure dependency %s (%s: %s) %s", purlPrettyPrint(*vuln.PkgIdentifier.PURL), vuln.VulnerabilityID, vuln.Title, fixedVersionMessage),
+					PatternID:   ruleID,
+					SourceID:    vuln.VulnerabilityID,
+					ExtraFields: extraFields,
 				},
 			)
 		}
@@ -499,6 +518,93 @@ func unencodeComponents(bom *cdx.BOM) {
 			}
 		}
 	}
+}
+
+// buildPackageGraph precomputes, once per Trivy result, the structures needed to walk the
+// dependency graph: a Package.ID -> Package map for name resolution, and an inverted
+// child-ID -> parent-IDs map.
+//
+// Trivy's pkg.DependsOn lists a package's children keyed by Package.ID — NOT by
+// Identifier.UID (a calculated hash) — see pkg/fanal/analyzer/language/analyze.go
+// (deps[dep.ID] = dep.DependsOn) and pkg/dependency/id.go. Keying by anything other than
+// Package.ID makes every lookup miss, collapsing all chains to single-element ones.
+func buildPackageGraph(packages []ftypes.Package) (map[string]ftypes.Package, map[string][]string) {
+	pkgByID := make(map[string]ftypes.Package, len(packages))
+	parentsByID := make(map[string][]string)
+	for _, pkg := range packages {
+		pkgByID[pkg.ID] = pkg
+		for _, childID := range pkg.DependsOn {
+			parentsByID[childID] = append(parentsByID[childID], pkg.ID)
+		}
+	}
+	return pkgByID, parentsByID
+}
+
+// buildDependencyChains enumerates root-to-vulnerable chains for the package identified by
+// targetID (a Trivy Package.ID, e.g. vuln.PkgID) via DFS over the inverted parent map.
+// Each chain is ordered root-most first, vulnerable package last.
+// Limits: max maxDependencyChains chains; per-chain length capped at maxDependencyChainLen (tail kept).
+func buildDependencyChains(targetID string, pkgByID map[string]ftypes.Package, parentsByID map[string][]string) [][]string {
+	if targetID == "" {
+		return nil
+	}
+	if _, ok := pkgByID[targetID]; !ok {
+		return nil
+	}
+
+	var out [][]string
+
+	// record appends a finished chain, enforcing the maxDependencyChains cap in one place.
+	record := func(path []string) {
+		if len(out) < maxDependencyChains {
+			out = append(out, trimChainTail(path, maxDependencyChainLen))
+		}
+	}
+
+	nodeName := func(id string) string {
+		if pkg, ok := pkgByID[id]; ok && pkg.Identifier.PURL != nil {
+			return purlPrettyPrint(*pkg.Identifier.PURL)
+		}
+		return id
+	}
+
+	var dfs func(currentID string, path []string, visited map[string]bool)
+	dfs = func(currentID string, path []string, visited map[string]bool) {
+		if len(out) >= maxDependencyChains || visited[currentID] {
+			return
+		}
+		visited[currentID] = true
+		defer delete(visited, currentID)
+
+		path = append([]string{nodeName(currentID)}, path...)
+
+		parents := parentsByID[currentID]
+		if len(parents) == 0 {
+			record(path)
+			return
+		}
+		before := len(out)
+		for _, parentID := range parents {
+			if len(out) >= maxDependencyChains {
+				return
+			}
+			dfs(parentID, path, visited)
+		}
+		// All parent branches were blocked by cycle detection — treat current node as a root.
+		if len(out) == before {
+			record(path)
+		}
+	}
+
+	dfs(targetID, nil, map[string]bool{})
+	return out
+}
+
+func trimChainTail(chain []string, max int) []string {
+	if len(chain) <= max {
+		return chain
+	}
+	return chain[len(chain)-max:]
 }
 
 // Remove the pkg: prefix and url-decode the PURL for display purposes.
