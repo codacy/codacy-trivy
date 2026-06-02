@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  codacy: codacy/base@13.0.2
+  codacy: codacy/base@13.0.4
   codacy_plugins_test: codacy/plugins-test@2.1.2
 
 references:
@@ -125,7 +125,7 @@ workflows:
           source_name: codacy/codacy-trivy
           mirror_name: codacy/codacy-trivy
           source_tag: $(cat .previous_version)
-          force: true
+          overwrite_only_existing: true
           requires:
             - publish_dockerhub
       - codacy/mirror_to_ecr:
@@ -135,7 +135,7 @@ workflows:
           source_name: codacy/codacy-trivy
           mirror_name: codacy/codacy-trivy
           source_tag: $(cat .previous_version)
-          force: true
+          overwrite_only_existing: true
           requires:
             - publish_dockerhub
       - codacy/mirror_to_ecr:
@@ -145,6 +145,6 @@ workflows:
           source_name: codacy/codacy-trivy
           mirror_name: codacy/codacy-trivy
           source_tag: $(cat .previous_version)
-          force: true
+          overwrite_only_existing: true
           requires:
             - publish_dockerhub
