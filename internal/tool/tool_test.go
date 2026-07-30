@@ -341,9 +341,9 @@ func TestRun(t *testing.T) {
 		expectedRootComponentBOMRef := "d16d6083-4370-442f-a6ab-c5146a215dbe"
 		expectedRooComponentName := "file-802713450"
 		expectedBOM := cyclonedx.BOM{
-			JSONSchema:   "http://cyclonedx.org/schema/bom-1.6.schema.json",
+			JSONSchema:   "http://cyclonedx.org/schema/bom-1.7.schema.json",
 			BOMFormat:    "CycloneDX",
-			SpecVersion:  cyclonedx.SpecVersion1_6,
+			SpecVersion:  cyclonedx.SpecVersion1_7,
 			SerialNumber: "urn:uuid:181e846e-fede-46b6-8be7-206a0f393caa", // different every run
 			Version:      1,
 			Metadata: &cyclonedx.Metadata{
@@ -483,7 +483,7 @@ func TestRun(t *testing.T) {
 		// Only one SBOM result is produced
 		assert.Len(t, sboms, 1)
 		assert.Equal(t, sboms[0].(codacy.SBOM).BomFormat, codacy.CycloneDXJSON)
-		assert.Equal(t, sboms[0].(codacy.SBOM).SpecVersion, "1.6")
+		assert.Equal(t, sboms[0].(codacy.SBOM).SpecVersion, "1.7")
 		assert.True(
 			t,
 			cmp.Equal(

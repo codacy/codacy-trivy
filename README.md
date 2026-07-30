@@ -70,8 +70,8 @@ This is a **Codacy engine**: a Go wrapper (`cmd/tool/main.go`, `internal/tool`, 
 | `.circleci/config.yml` → `build_and_publish_docker` reference (`--build-arg TRIVY_VERSION=0.X.Y`) | The `TRIVY_VERSION` build arg baked into the image (used for the tool's reported version) | Same value as the other two. |
 | `.circleci/config.yml` → `codacy: codacy/base@X.Y.Z` orb | Shared CircleCI steps (checkout, docker publish, tag, ECR mirror) | Check the latest published version; not required every bump, but was bumped alongside Trivy in `8d886e7`. |
 | `.circleci/config.yml` → `codacy_plugins_test: codacy/plugins-test@X.Y.Z` orb | Runs `codacy-plugins-test` in CI | Same as above. |
-| `Dockerfile` → `FROM golang:1.25-alpine` | Go toolchain the image is built with | Only bump if the target Trivy/Go version requires a newer Go. |
-| `go.mod` → `go 1.25.8` line | Go language version | Keep in sync with the Dockerfile's `golang:` base image tag. |
+| `Dockerfile` → `FROM golang:1.26-alpine` | Go toolchain the image is built with | Only bump if the target Trivy/Go version requires a newer Go. |
+| `go.mod` → `go 1.26.3` line | Go language version | Keep in sync with the Dockerfile's `golang:` base image tag. |
 
 The prior real bump commit `8d886e7` ("bump: Trivy to 0.69.2 (#246)") touched exactly `go.mod`, `go.sum`, and both Trivy references in `.circleci/config.yml` — use it as a template for the diff shape.
 
