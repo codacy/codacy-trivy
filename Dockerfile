@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 ARG TRIVY_VERSION=dev
 ENV TRIVY_VERSION=$TRIVY_VERSION
