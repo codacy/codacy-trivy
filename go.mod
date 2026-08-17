@@ -11,7 +11,7 @@ require (
 	github.com/package-url/packageurl-go v0.1.6
 	github.com/samber/lo v1.53.0
 	github.com/sirupsen/logrus v1.9.4 // Logrus is the logging library used in codacy-engine-golang-seed
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/mod v0.36.0
 )
