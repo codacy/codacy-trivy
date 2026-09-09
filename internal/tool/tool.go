@@ -81,30 +81,41 @@ func (t codacyTrivy) Run(ctx context.Context, toolExecution codacy.ToolExecution
 	// This is the only way to suppress Trivy logs.
 	log.InitLogger(false, true)
 
-	report, err := t.runBaseScan(ctx, toolExecution.SourceDir)
-	if err != nil {
-		return nil, err
+	allIssues := []codacy.Result{}
+
+	// The dependency scan covers the whole source directory regardless of the requested files, and the SBOM is derived
+	// from it, so both are wasted work when the execution has no SCA pattern to report them under.
+	if scaScanningEnabled(*toolExecution.Patterns) {
+		report, err := t.runBaseScan(ctx, toolExecution.SourceDir)
+		if err != nil {
+			return nil, err
+		}
+
+		sbom, err := t.getSBOM(ctx, report)
+		if err != nil {
+			return nil, err
+		}
+
+		vulnerabilityScanningIssues, err := t.getVulnerabilities(ctx, report, toolExecution)
+		if err != nil {
+			return nil, err
+		}
+
+		allIssues = append(allIssues, vulnerabilityScanningIssues...)
+		allIssues = append(allIssues, t.maliciousPackagesScanner.Scan(report, toolExecution)...)
+		allIssues = append(allIssues, sbom)
 	}
 
-	sbom, err := t.getSBOM(ctx, report)
-	if err != nil {
-		return nil, err
-	}
-
-	vulnerabilityScanningIssues, err := t.getVulnerabilities(ctx, report, toolExecution)
-	if err != nil {
-		return nil, err
-	}
-
-	secretScanningIssues := t.runSecretScanning(toolExecution)
-
-	maliciousPackagesIssues := t.maliciousPackagesScanner.Scan(report, toolExecution)
-
-	allIssues := append(vulnerabilityScanningIssues, secretScanningIssues...)
-	allIssues = append(allIssues, maliciousPackagesIssues...)
-	allIssues = append(allIssues, sbom)
+	allIssues = append(allIssues, t.runSecretScanning(toolExecution)...)
 
 	return allIssues, nil
+}
+
+// scaScanningEnabled returns whether any of the given patterns needs the dependency scan.
+func scaScanningEnabled(patterns []codacy.Pattern) bool {
+	return lo.SomeBy(patterns, func(p codacy.Pattern) bool {
+		return p.ID == ruleIDMaliciousPackages || lo.Contains(ruleIDsVulnerability, p.ID)
+	})
 }
 
 // runBaseScan will run a vulnerability scan that produces a report to be used for SBOM generation or for vulnerability issues.
