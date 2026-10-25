@@ -627,6 +627,75 @@ func TestRunVulnerabilityScanningNotEnabled(t *testing.T) {
 	assert.Empty(t, results)
 }
 
+func TestRunSkipsDependencyScanWhenScaNotEnabled(t *testing.T) {
+	// Arrange
+	srcDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		assert.FailNow(t, "Failed to create tmp directory", err.Error())
+	}
+	defer os.RemoveAll(srcDir)
+
+	f, err := os.CreateTemp(srcDir, "file-")
+	if err != nil {
+		assert.FailNow(t, "Failed to create tmp file", err.Error())
+	}
+	defer f.Close()
+
+	if _, err := f.Write([]byte("AWS_ACCESS_KEY_ID=AKIA0123456789ABCDEF")); err != nil {
+		assert.FailNow(t, "Failed to write to tmp file", err.Error())
+	}
+
+	toolExecution := codacy.ToolExecution{
+		Patterns:  &[]codacy.Pattern{{ID: ruleIDSecret}},
+		Files:     &[]string{filepath.Base(f.Name())},
+		SourceDir: srcDir,
+	}
+
+	// A factory that only fails: reaching it at all would surface as an error from Run.
+	underTest := codacyTrivy{runnerFactory: errorRunnerFactory{err: assert.AnError}}
+
+	// Act
+	results, err := underTest.Run(context.Background(), toolExecution)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.NotEmpty(t, results, "secret scanning still reports")
+
+	sboms := lo.Filter(results, func(result codacy.Result, _ int) bool {
+		_, isSBOM := result.(codacy.SBOM)
+		return isSBOM
+	})
+	assert.Empty(t, sboms, "the SBOM is derived from the dependency scan, so there is none")
+}
+
+func TestScaScanningEnabled(t *testing.T) {
+	// Arrange
+	type testData struct {
+		name     string
+		patterns []codacy.Pattern
+		expected bool
+	}
+
+	tests := []testData{
+		{name: "no patterns", patterns: []codacy.Pattern{}, expected: false},
+		{name: "only secret", patterns: []codacy.Pattern{{ID: ruleIDSecret}}, expected: false},
+		{name: "only unknown", patterns: []codacy.Pattern{{ID: "unknown"}}, expected: false},
+		{name: "a vulnerability severity", patterns: []codacy.Pattern{{ID: ruleIDVulnerabilityMinor}}, expected: true},
+		{name: "malicious packages", patterns: []codacy.Pattern{{ID: ruleIDMaliciousPackages}}, expected: true},
+		{
+			name:     "secret alongside a vulnerability severity",
+			patterns: []codacy.Pattern{{ID: ruleIDSecret}, {ID: ruleIDVulnerabilityCritical}},
+			expected: true,
+		},
+	}
+
+	for _, testData := range tests {
+		t.Run(testData.name, func(t *testing.T) {
+			assert.Equal(t, testData.expected, scaScanningEnabled(testData.patterns))
+		})
+	}
+}
+
 func TestRunSecretScanningNotEnabled(t *testing.T) {
 	toolExecution := codacy.ToolExecution{
 		Patterns: &[]codacy.Pattern{{ID: ruleIDVulnerabilityMedium}},
