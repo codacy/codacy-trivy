@@ -24,7 +24,9 @@ jobs:
       - name: Close updates to the test fixtures
         id: fixtures
         run: |
-          if gh pr diff "$PR_NUMBER" --name-only | grep -q '^docs/multiple-tests/'; then
+          # Fail the job (and skip auto-merge) if the changed files can't be read.
+          files=$(gh pr diff "$PR_NUMBER" --name-only)
+          if grep -q '^docs/multiple-tests/' <<< "$files"; then
             gh pr close "$PR_NUMBER" --comment "Closing automatically: \`docs/multiple-tests\` holds test fixtures that are vulnerable on purpose, so the tests can check that Trivy reports them. Updating them would break those tests."
             echo "closed=true" >> "$GITHUB_OUTPUT"
           fi
