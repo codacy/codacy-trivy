@@ -12,6 +12,8 @@ target
 bin
 cache
 openssf-malicious-packages
+cache-fixtures
+openssf-fixtures
 *.gen.go
 .codacyrc
 trivy

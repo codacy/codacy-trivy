@@ -1,0 +1,17 @@
+
+━━ verity guard · 2026-11-23T16:39:33.758Z · pid 24701
+   v0.37.1 · /Users/nunofernandes/workspace/claude-workbench
+   argv: guard
+Reviewed (pre-commit): 10 file(s) @ staged
+  Tree: /Users/nunofernandes/workspace/codacy-trivy-wt-pin-fixture-dbs (linked worktree) · branch ci/pin-fixture-test-dbs
+  Repo context: absent (no-diffs)
+  - scripts/fixture-dbs.env
+  - README.md
+  - docs/multiple-tests/pattern-vulnerability-medium/results.xml
+  - .github/workflows/auto-merge-dependabot-dependency-updates.yaml
+  - .circleci/config.yml
+  - .gitignore
+  - scripts/regenerate_fixtures.py
+  - Dockerfile
+  - scripts/build_fixture_image.sh
+  - scripts/pin_fixture_dbs.sh

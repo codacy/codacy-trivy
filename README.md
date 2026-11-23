@@ -39,6 +39,19 @@ go run ./cmd/docgen
 We use the [codacy-plugins-test](https://github.com/codacy/codacy-plugins-test) to test our external tools integration.
 You can follow the instructions there to make sure your tool is working as expected.
 
+### Fixture test databases
+
+The `docs/multiple-tests` fixtures are checked against an image built with **pinned** databases: the Trivy vulnerability DB digest and the [OpenSSF malicious packages](https://github.com/ossf/malicious-packages) commit in [`scripts/fixture-dbs.env`](scripts/fixture-dbs.env). Released images still ship the latest databases. Without the pin, every database update changes the expected `results.xml` and breaks CI on unrelated PRs (Dependabot bumps included).
+
+```bash
+scripts/build_fixture_image.sh          # builds codacy-trivy:fixtures with the pinned databases
+python3 scripts/regenerate_fixtures.py  # rewrites docs/multiple-tests/*/results.xml from that image
+```
+
+To move the pin forward (for example, to make a new fixture vulnerability show up), run `scripts/pin_fixture_dbs.sh`, then the two commands above, and commit `scripts/fixture-dbs.env` with the regenerated `results.xml` files in the same PR.
+
+The sources under `docs/multiple-tests/*/src` are **vulnerable on purpose**. Don't update their dependencies: the auto-merge workflow closes Dependabot PRs that touch them.
+
 ## Versioning
 
 The latest version of this docker image will be updated daily with new versions of Trivy's vulnerability DBs. The update process keeps the version tag.
@@ -59,7 +72,7 @@ This section is written for an AI coding agent (or a human) tasked with updating
 
 ### 1. What this repository is
 
-This is a **Codacy engine**: a Go wrapper (`cmd/tool/main.go`, `internal/tool`, built on `codacy-engine-golang-seed/v8`) that packages [Trivy](https://github.com/aquasecurity/trivy), Aqua Security's vulnerability/secret/misconfiguration scanner, as a Docker image Codacy's platform runs against a customer's source code. Unlike engines that scrape an upstream rule catalog, this repo does **not** have a generated `docs/patterns.json` in the checked-out tree — the "patterns" here are a small, hand-authored, fixed set of Codacy categories (`secret`, `vulnerability_critical/high/medium/minor`, `malicious_packages`) declared directly in `internal/docgen/rule.go`. `patterns.json` and `docs/description/*.md` are (re)generated from that fixed list by `cmd/docgen` (`internal/docgen/docgen.go`) via `go run ./cmd/docgen`, and the Dockerfile runs this generator during the image build (`RUN ... go run ./cmd/docgen`) — it is not something you need to run and commit separately unless you change `internal/docgen/rule.go` itself. `docs/tool-description.md` and `docs/description/*.md` are checked into git and should stay in sync with `internal/docgen/rule.go` if that file changes. `docs/multiple-tests/*` (fixture `src/`, `patterns.xml`, `results.xml`) are fixtures consumed by `codacy-plugins-test`; a Trivy version bump commonly changes vulnerability DB contents and requires regenerating `results.xml` via `scripts/regenerate_fixtures.py` (see prior commit `a9ec845`, "chore: regenerate fixture results for Trivy DB update").
+This is a **Codacy engine**: a Go wrapper (`cmd/tool/main.go`, `internal/tool`, built on `codacy-engine-golang-seed/v8`) that packages [Trivy](https://github.com/aquasecurity/trivy), Aqua Security's vulnerability/secret/misconfiguration scanner, as a Docker image Codacy's platform runs against a customer's source code. Unlike engines that scrape an upstream rule catalog, this repo does **not** have a generated `docs/patterns.json` in the checked-out tree — the "patterns" here are a small, hand-authored, fixed set of Codacy categories (`secret`, `vulnerability_critical/high/medium/minor`, `malicious_packages`) declared directly in `internal/docgen/rule.go`. `patterns.json` and `docs/description/*.md` are (re)generated from that fixed list by `cmd/docgen` (`internal/docgen/docgen.go`) via `go run ./cmd/docgen`, and the Dockerfile runs this generator during the image build (`RUN ... go run ./cmd/docgen`) — it is not something you need to run and commit separately unless you change `internal/docgen/rule.go` itself. `docs/tool-description.md` and `docs/description/*.md` are checked into git and should stay in sync with `internal/docgen/rule.go` if that file changes. `docs/multiple-tests/*` (fixture `src/`, `patterns.xml`, `results.xml`) are fixtures consumed by `codacy-plugins-test`; they are tested against an image with pinned databases (see [Fixture test databases](#fixture-test-databases)), so only changes in detection logic (for example a Trivy version bump) change `results.xml`.
 
 ### 2. Files that encode versions — check all of these on every update
 
@@ -83,7 +96,7 @@ The prior real bump commit `8d886e7` ("bump: Trivy to 0.69.2 (#246)") touched ex
 4. **Compile and test locally**: `go generate ./... && go test ./...` (mirrors the CircleCI `generate_and_test` job).
 5. **Regenerate docs if `internal/docgen/rule.go` changed**: `go run ./cmd/docgen` (writes `docs/patterns.json` and `docs/description/*`); if you only bumped the Trivy version, this step is not required since the pattern list is version-independent.
 6. **Build the Docker image** with the matching build arg: `docker build --build-arg TRIVY_VERSION=X.Y.Z -t codacy-trivy:latest .`
-7. **Regenerate test fixtures if vulnerability results changed**: a Trivy/DB bump can change which vulnerabilities are detected in the `docs/multiple-tests/*` fixtures. Run `scripts/regenerate_fixtures.py` (see commit `a9ec845` for the expected diff shape — it only touches `docs/multiple-tests/*/results.xml`) and review the diff for real behavior changes vs. noise.
+7. **Regenerate test fixtures if vulnerability results changed**: a Trivy bump can change which vulnerabilities are detected in the `docs/multiple-tests/*` fixtures. Run `scripts/build_fixture_image.sh`, then `python3 scripts/regenerate_fixtures.py` (it only touches `docs/multiple-tests/*/results.xml`), and review the diff. The databases are pinned, so any diff comes from the Trivy change itself.
 8. **Run `codacy-plugins-test` locally** before pushing — clone https://github.com/codacy/codacy-plugins-test and run its DockerTest commands (single and multiple-test modes, mirroring the CircleCI `plugins_test` job which runs with `run_multiple_tests: true`) against your local image tag.
 9. **Iterate on failures**, re-running only the relevant command after each fix.
 10. **Commit** the version bump(s), regenerated fixtures, and any regenerated docs together in one change (only touch files that actually need to change for this bump).
@@ -94,7 +107,8 @@ The prior real bump commit `8d886e7` ("bump: Trivy to 0.69.2 (#246)") touched ex
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| CI fails downloading vulnerability DBs, or `plugins_test` reports mismatched vulnerability results | The standalone Trivy CLI version installed by `.circleci/config.yml`'s `install_trivy_and_download_dbs` step is out of sync with the `go.mod` library version, or the vulnerability DB itself changed | Ensure both `.circleci/config.yml` Trivy references and `go.mod` use the exact same version; regenerate `docs/multiple-tests/*/results.xml` via `scripts/regenerate_fixtures.py`. |
+| CI fails downloading vulnerability DBs, or `plugins_test` reports mismatched vulnerability results | The standalone Trivy CLI version installed by `.circleci/config.yml`'s `install_trivy_and_download_dbs` step is out of sync with the `go.mod` library version, or the Trivy change alters detection | Ensure both `.circleci/config.yml` Trivy references and `go.mod` use the exact same version; regenerate the fixtures with `scripts/build_fixture_image.sh` and `scripts/regenerate_fixtures.py`. |
+| `build_fixtures_image` fails downloading `trivy-db@sha256:...` (manifest unknown) | The pinned DB digest is no longer available upstream | Move the pin forward with `scripts/pin_fixture_dbs.sh` and regenerate the fixtures (see [Fixture test databases](#fixture-test-databases)). |
 | Local build fails with errors about experimental JSON handling | `GOEXPERIMENT=jsonv2` not set | Run `go env -w GOEXPERIMENT=jsonv2` before building/testing, as the Dockerfile and CircleCI config both do. |
 
 ### 5. Definition of done
@@ -103,7 +117,7 @@ The prior real bump commit `8d886e7` ("bump: Trivy to 0.69.2 (#246)") touched ex
 - Any CircleCI orb bumps (`codacy/base`, `codacy/plugins-test`) applied if relevant.
 - `go generate ./... && go test ./...` pass locally.
 - Docker image builds successfully with the matching `TRIVY_VERSION` build arg.
-- `docs/multiple-tests/*/results.xml` fixtures regenerated and reviewed if vulnerability detection results changed.
+- `docs/multiple-tests/*/results.xml` fixtures regenerated from `codacy-trivy:fixtures` and reviewed if vulnerability detection results changed.
 - `docs/patterns.json` / `docs/description/*` regenerated only if `internal/docgen/rule.go` changed.
 - `codacy-plugins-test` commands pass locally against the freshly built image.
 - **After pushing and opening/updating the PR, every CI check on it is green.** Poll `gh pr checks <pr-url>` and iterate on any failure until all pass.

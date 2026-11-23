@@ -53,11 +53,30 @@ workflows:
           name: publish_docker_local
           requires:
             - build_openssf_malicious_package_index
+      # plugins_test runs against an image with pinned databases (scripts/fixture-dbs.env),
+      # so Trivy DB and OpenSSF updates don't change the expected docs/multiple-tests results.
+      # The image published below still ships the latest databases.
+      - codacy/shell:
+          name: build_fixtures_image
+          steps:
+            - run:
+                name: Build the image with the pinned fixture databases
+                command: |
+                  scripts/build_fixture_image.sh
+                  docker save --output docker-image-fixtures.tar codacy-trivy:fixtures
+            - persist_to_workspace:
+                root: ~/workdir
+                paths:
+                  - docker-image-fixtures.tar
+          requires:
+            - publish_docker_local
       - codacy_plugins_test/run:
           name: plugins_test
           run_multiple_tests: true
+          docker_image_tag: fixtures
+          docker_tar_path: ~/workdir/docker-image-fixtures.tar
           requires:
-            - publish_docker_local
+            - build_fixtures_image
       - codacy/publish_docker:
           context: CodacyDocker
           requires:

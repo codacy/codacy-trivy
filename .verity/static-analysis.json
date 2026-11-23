@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "metadata": {
+    "source": "verity",
+    "languages": []
+  },
+  "tools": [
+    {
+      "toolId": "Trivy",
+      "patterns": [
+        {
+          "patternId": "Trivy_secret"
+        },
+        {
+          "patternId": "Trivy_vulnerability_critical"
+        },
+        {
+          "patternId": "Trivy_vulnerability_high"
+        },
+        {
+          "patternId": "Trivy_malicious_packages"
+        }
+      ]
+    }
+  ]
+}
