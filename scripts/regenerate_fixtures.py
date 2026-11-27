@@ -11,7 +11,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = REPO_ROOT / "docs/multiple-tests"
-IMAGE = "codacy-trivy:latest"
+# Built by scripts/build_fixture_image.sh with the pinned databases; see README.md.
+IMAGE = os.environ.get("CODACY_TRIVY_IMAGE", "codacy-trivy:fixtures")
 
 
 def parse_patterns_xml(patterns_file: Path) -> list[str]:

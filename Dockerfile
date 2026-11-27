@@ -30,7 +30,10 @@ RUN adduser -u 2004 -D docker
 
 COPY --from=builder --chown=docker:docker /src/bin /dist/bin
 COPY --from=builder --chown=docker:docker /src/docs /docs 
-COPY --chown=docker:docker cache/ /dist/cache/codacy-trivy
-COPY --chown=docker:docker openssf-malicious-packages/openssf-malicious-packages-index.json.gz /dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz
+# Overridden only for the fixture test image (scripts/build_fixture_image.sh).
+ARG DB_CACHE_DIR=cache
+ARG MALICIOUS_PACKAGES_INDEX=openssf-malicious-packages/openssf-malicious-packages-index.json.gz
+COPY --chown=docker:docker ${DB_CACHE_DIR}/ /dist/cache/codacy-trivy
+COPY --chown=docker:docker ${MALICIOUS_PACKAGES_INDEX} /dist/cache/codacy-trivy/openssf-malicious-packages-index.json.gz
 
 CMD [ "/dist/bin/codacy-trivy" ]

@@ -5,63 +5,126 @@ orbs:
   codacy_plugins_test: codacy/plugins-test@2.1.2
 
 references:
+  # Each job persists only what later jobs use: persisting the whole working directory
+  # re-uploads the source, the Trivy DB and the OpenSSF repo in every job.
+
+  generate_and_test: &generate_and_test
+    steps:
+      - restore_cache:
+          keys:
+            - go-v1-{{ checksum "go.sum" }}
+            - go-v1-
+      - run:
+          name: Generate and test
+          command: |
+            export GOMODCACHE=~/go/pkg/mod GOCACHE=~/.cache/go-build
+            go env -w GOEXPERIMENT=jsonv2
+            go generate ./...
+            go test ./...
+      - save_cache:
+          key: go-v1-{{ checksum "go.sum" }}
+          paths:
+            - ~/go/pkg/mod
+            - ~/.cache/go-build
+
   install_trivy_and_download_dbs: &install_trivy_and_download_dbs
-    persist_to_workspace: true
-    # https://trivy.dev/docs/v0.74/getting-started/installation/#installing-trivy
-    cmd: |
-      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.74.0
-      mkdir cache
-      ./trivy --cache-dir ./cache image --download-db-only
+    steps:
+      - run:
+          name: Install Trivy and download the vulnerability DB
+          # https://trivy.dev/docs/v0.74/getting-started/installation/#installing-trivy
+          command: |
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b . v0.74.0
+            mkdir cache
+            ./trivy --cache-dir ./cache image --download-db-only
+      - persist_to_workspace:
+          root: ~/workdir
+          paths:
+            - trivy
+            - cache
 
   build_openssf_malicious_package_index: &build_openssf_malicious_package_index
-    persist_to_workspace: true
-    cmd: |
-      mkdir openssf-malicious-packages
-      curl -sfL https://api.github.com/repos/ossf/malicious-packages/tarball/main | tar -xz --strip-components=1 -C openssf-malicious-packages
-      python3 scripts/build_openssf_index.py
+    steps:
+      - run:
+          name: Build the OpenSSF malicious packages index
+          command: |
+            mkdir openssf-malicious-packages
+            curl -sfL https://api.github.com/repos/ossf/malicious-packages/tarball/main | tar -xz --strip-components=1 -C openssf-malicious-packages
+            python3 scripts/build_openssf_index.py
+      - persist_to_workspace:
+          root: ~/workdir
+          paths:
+            - openssf-malicious-packages/openssf-malicious-packages-index.json.gz
 
   build_and_publish_docker: &build_and_publish_docker
-    persist_to_workspace: true
-    cmd: |
-      docker build --no-cache -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.74.0 .
-      docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
+    steps:
+      - run:
+          name: Build the Docker image
+          command: |
+            docker build --no-cache -t $CIRCLE_PROJECT_REPONAME:latest --build-arg TRIVY_VERSION=0.74.0 .
+            docker save --output docker-image.tar $CIRCLE_PROJECT_REPONAME:latest
+      - persist_to_workspace:
+          root: ~/workdir
+          paths:
+            - docker-image.tar
 
 workflows:
   compile_test_deploy:
     jobs:
       - codacy/checkout_and_version
+      # Tests, DB download and OpenSSF index don't depend on each other, so they run in parallel.
       - codacy/shell:
+          <<: *generate_and_test
           name: generate_and_test
-          cmd: |
-            go env -w GOEXPERIMENT=jsonv2
-            go generate ./...
-            go test ./...
           requires:
             - codacy/checkout_and_version
       - codacy/shell:
           <<: *install_trivy_and_download_dbs
           name: install_trivy_and_download_dbs
           requires:
-            - generate_and_test
+            - codacy/checkout_and_version
       - codacy/shell:
           <<: *build_openssf_malicious_package_index
           name: build_openssf_malicious_package_index
           requires:
-            - install_trivy_and_download_dbs
+            - codacy/checkout_and_version
       - codacy/shell:
           <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
+            - generate_and_test
+            - install_trivy_and_download_dbs
             - build_openssf_malicious_package_index
+      # plugins_test runs against an image with pinned databases (scripts/fixture-dbs.env),
+      # so Trivy DB and OpenSSF updates don't change the expected docs/multiple-tests results.
+      # The image published below still ships the latest databases. It builds in parallel
+      # with publish_docker_local, since it uses neither the latest DB nor the latest index.
+      - codacy/shell:
+          name: build_fixtures_image
+          steps:
+            - run:
+                name: Build the image with the pinned fixture databases
+                command: |
+                  scripts/build_fixture_image.sh
+                  docker save --output docker-image-fixtures.tar codacy-trivy:fixtures
+            - persist_to_workspace:
+                root: ~/workdir
+                paths:
+                  - docker-image-fixtures.tar
+          requires:
+            - generate_and_test
+            - install_trivy_and_download_dbs
       - codacy_plugins_test/run:
           name: plugins_test
           run_multiple_tests: true
+          docker_image_tag: fixtures
+          docker_tar_path: ~/workdir/docker-image-fixtures.tar
           requires:
-            - publish_docker_local
+            - build_fixtures_image
       - codacy/publish_docker:
           context: CodacyDocker
           requires:
             - plugins_test
+            - publish_docker_local
           filters:
             branches:
               only:
@@ -85,27 +148,26 @@ workflows:
     jobs:
       - codacy/checkout_and_version
       - codacy/shell:
+          <<: *generate_and_test
           name: generate_and_test
-          cmd: |
-            go env -w GOEXPERIMENT=jsonv2
-            go generate ./...
-            go test ./...
           requires:
             - codacy/checkout_and_version
       - codacy/shell:
           <<: *install_trivy_and_download_dbs
           name: install_trivy_and_download_dbs
           requires:
-            - generate_and_test
+            - codacy/checkout_and_version
       - codacy/shell:
           <<: *build_openssf_malicious_package_index
           name: build_openssf_malicious_package_index
           requires:
-            - install_trivy_and_download_dbs
+            - codacy/checkout_and_version
       - codacy/shell:
           <<: *build_and_publish_docker
           name: publish_docker_local
           requires:
+            - generate_and_test
+            - install_trivy_and_download_dbs
             - build_openssf_malicious_package_index
       - codacy/publish_docker:
           name: publish_dockerhub

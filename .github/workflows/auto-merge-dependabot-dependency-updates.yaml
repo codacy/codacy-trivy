@@ -3,6 +3,8 @@
 #   - PR was opened by dependabot[bot].
 #   - Dependency update is a minor or patch update. This is determined based on Dependabot's metadata.
 #   - Configured required checks pass.
+#   - PR does not touch docs/multiple-tests. Those sources are vulnerable on purpose (the tests check that
+#     Trivy reports them), so Dependabot security updates for them are closed instead of merged.
 #
 # PRs are approved and merged by user codacybeta (https://github.com/orgs/codacy/people/codacybeta), using its
 # AUTO_MERGE_TOKEN.
@@ -19,13 +21,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Close updates to the test fixtures
+        id: fixtures
+        run: |
+          # Fail the job (and skip auto-merge) if the changed files can't be read.
+          files=$(gh pr diff "$PR_NUMBER" --name-only)
+          if grep -q '^docs/multiple-tests/' <<< "$files"; then
+            gh pr close "$PR_NUMBER" --comment "Closing automatically: \`docs/multiple-tests\` holds test fixtures that are vulnerable on purpose, so the tests can check that Trivy reports them. Updating them would break those tests."
+            echo "closed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
       - name: Get Dependabot metadata
+        if: steps.fixtures.outputs.closed != 'true'
         id: metadata
         uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
         with:
           github-token: ${{ secrets.AUTO_MERGE_TOKEN }}
       - name: Approve PR and set it to auto-merge
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: >-
+          steps.fixtures.outputs.closed != 'true' &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor')
         run: |
           gh pr review --approve ${{ github.event.pull_request.number }}
           gh pr merge --squash --auto ${{ github.event.pull_request.number }}
